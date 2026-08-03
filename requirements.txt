@@ -1,0 +1,8 @@
+flask
+flask-cors
+requests
+psutil
+pillow
+pystray
+pyautogui
+html2image
