@@ -1,0 +1,635 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>DS PIXEL PRO - STAGE CURVED VISUALIZER</title>
+    <style>
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+        }
+        
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden !important;
+            background: radial-gradient(circle at center, #1a1a2e, #0a0a12); /* 用于毛玻璃模糊的底图 */
+            touch-action: none;
+            position: relative;
+        }
+
+        /* 磨砂玻璃层 */
+        #glass-bg {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: rgba(0, 0, 0, 0.55);          /* 半透明黑色 */
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            z-index: 0;
+        }
+
+        #wf-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: block;
+            z-index: 1;
+            background: transparent !important;      /* 确保画布透明 */
+        }
+
+        .hidden-backend-container {
+            display: none !important;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 毛玻璃背景层 -->
+    <div id="glass-bg"></div>
+
+    <canvas id="wf-canvas"></canvas>
+
+    <div class="hidden-backend-container">
+        <select id="model-select">
+            <option value="gemini" selected>Gemini 最新通道</option>
+            <option value="deepseek">DeepSeek 基础通道</option>
+        </select>
+        <input type="password" id="gemini-key">
+        <input type="password" id="deepseek-key">
+        <div id="di-audio">H5 MIC Ready</div>
+        <div id="chat-box"><div class="message ai-msg">已就绪</div></div>
+        <input type="text" id="text-input">
+        <div id="debug-log"></div>
+        <div id="wf-info"></div>
+    </div>
+
+    <script>
+        let audioCtx = null;
+        let analyser = null;
+        let dataArray = null;
+        let freqArray = null;
+        let wfCanvas = null;
+        let wfCtx = null;
+        let animFrameId = null;
+
+        const TOTAL_BARS = 52;
+        const SMOOTHING = 0.04;          
+        const NOISE_THRESHOLD = 15;      
+
+        const renderedHeights = new Float32Array(TOTAL_BARS);
+        let globalTick = 0;              
+        let dynamicMax = 180;            
+
+        const calculatedX = new Float32Array(TOTAL_BARS);
+        const calculatedH = new Float32Array(TOTAL_BARS);
+        const calculatedBaselineY = new Float32Array(TOTAL_BARS);
+
+        let logicalWidth = 0;
+        let logicalHeight = 0;
+        let cachedGradAmbient = null;    // 不再使用，保留以防万一
+
+        let cachedGradAuraCold = null; 
+        let cachedGradAuraWarm = null; 
+
+        let smoothedRMS = 0;           
+        let colorT = 0;                
+        let glowSpriteCold = null;     
+        let glowSpriteWarm = null;     
+        const SPRITE_SIZE = 64; 
+
+        let bokehSpriteCanvas = null;  
+        let bokehParticles = [];       
+
+        let gapParticles = [];
+        let isDemoMode = true;
+
+        function initGlowSprites() {
+            glowSpriteCold = document.createElement('canvas');
+            glowSpriteCold.width = SPRITE_SIZE;
+            glowSpriteCold.height = SPRITE_SIZE;
+            let sCtx = glowSpriteCold.getContext('2d');
+            drawSingleSprite(sCtx, 'rgba(180, 220, 255, 0.95)'); 
+
+            glowSpriteWarm = document.createElement('canvas');
+            glowSpriteWarm.width = SPRITE_SIZE;
+            glowSpriteWarm.height = SPRITE_SIZE;
+            sCtx = glowSpriteWarm.getContext('2d');
+            drawSingleSprite(sCtx, 'rgba(255, 210, 160, 0.95)'); 
+        }
+
+        function drawSingleSprite(ctx, shadowColor) {
+            const center = SPRITE_SIZE / 2;
+            const radius = 10;
+            ctx.save();
+            ctx.shadowColor = shadowColor;
+            ctx.shadowBlur = 12;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(center, center, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+
+            ctx.beginPath();
+            ctx.arc(center, center, radius * 0.45, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+        }
+
+        function initBokehSprite() {
+            bokehSpriteCanvas = document.createElement('canvas');
+            const size = 128; 
+            bokehSpriteCanvas.width = size;
+            bokehSpriteCanvas.height = size;
+            const bCtx = bokehSpriteCanvas.getContext('2d');
+
+            const center = size / 2;
+            const grad = bCtx.createRadialGradient(center, center, 0, center, center, center);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');   
+            grad.addColorStop(0.2, 'rgba(255, 255, 255, 0.8)'); 
+            grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.2)'); 
+            grad.addColorStop(1, 'rgba(255, 255, 255, 0)');     
+
+            bCtx.fillStyle = grad;
+            bCtx.beginPath();
+            bCtx.arc(center, center, center, 0, Math.PI * 2);
+            bCtx.fill();
+        }
+
+        function initBokehParticles() {
+            bokehParticles = [];
+            const count = 18; 
+            for (let i = 0; i < count; i++) {
+                bokehParticles.push({
+                    x: Math.random() * logicalWidth,
+                    y: Math.random() * logicalHeight,
+                    baseSize: 40 + Math.random() * 80,         
+                    speedY: -0.15 - Math.random() * 0.20,      
+                    speedX: (Math.random() - 0.5) * 0.15,      
+                    baseOpacity: 0.03 + Math.random() * 0.08,  
+                    pulse: Math.random() * Math.PI * 2         
+                });
+            }
+        }
+
+        function getDynamicColor(alpha) {
+            const r = Math.round(200 + 55 * colorT);
+            const g = Math.round(225 + 10 * colorT);
+            const b = Math.round(255 - 50 * colorT);
+            return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+        }
+
+        function initParticles() {
+            gapParticles = [];
+            for (let i = 0; i < TOTAL_BARS - 1; i++) {
+                const colParticles = [];
+                const numParticles = 2 + Math.floor(Math.random() * 4); 
+                for (let p = 0; p < numParticles; p++) {
+                    colParticles.push({
+                        yRatio: Math.random(),                  
+                        speed: 0.002 + Math.random() * 0.005,   
+                        size: 0.8 + Math.random() * 2.5,        
+                        opacity: 0.15 + Math.random() * 0.65    
+                    });
+                }
+                gapParticles.push(colParticles);
+            }
+        }
+
+        function debugLog(msg, type = 'info') {
+            console.log(`[${type.toUpperCase()}] ${msg}`);
+        }
+
+        async function initVoiceAssistant() {
+            if (audioCtx && audioCtx.state === 'running') return;
+
+            try {
+                if (!audioCtx) {
+                    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                }
+                if (audioCtx.state === 'suspended') {
+                    await audioCtx.resume();
+                }
+            } catch (e) {
+                debugLog('❌ AudioContext 激活失败: ' + e.message, 'err');
+            }
+
+            try {
+                const micStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                
+                if (audioCtx) {
+                    if (!analyser) {
+                        analyser = audioCtx.createAnalyser();
+                        analyser.fftSize = 512;  
+                        analyser.smoothingTimeConstant = SMOOTHING;
+                        
+                        const source = audioCtx.createMediaStreamSource(micStream);
+                        source.connect(analyser);
+                        
+                        dataArray = new Uint8Array(analyser.fftSize);
+                        freqArray = new Uint8Array(analyser.frequencyBinCount);
+                    }
+                    
+                    wfCanvas = document.getElementById('wf-canvas');
+                    wfCtx = wfCanvas.getContext('2d');
+                    
+                    isDemoMode = false;
+                    resizeCanvas();
+                    window.removeEventListener('resize', resizeCanvas);
+                    window.addEventListener('resize', resizeCanvas);
+                    
+                    if (animFrameId) cancelAnimationFrame(animFrameId);
+                    startWaveformRender();
+                }
+            } catch (err) {
+                console.warn("麦克风未激活，运行仿真演示波形: ", err);
+                if (!wfCanvas) {
+                    wfCanvas = document.getElementById('wf-canvas');
+                    wfCtx = wfCanvas.getContext('2d');
+                    dataArray = new Uint8Array(256);
+                    freqArray = new Uint8Array(128);
+                    isDemoMode = true;
+                    resizeCanvas();
+                    window.addEventListener('resize', resizeCanvas);
+                    startWaveformRender();
+                }
+            }
+        }
+
+        function resizeCanvas() {
+            if (!wfCanvas) return;
+            logicalWidth = window.innerWidth;
+            logicalHeight = window.innerHeight;
+            const dpr = window.devicePixelRatio || 1;
+            wfCanvas.width = logicalWidth * dpr;
+            wfCanvas.height = logicalHeight * dpr;
+            if (wfCtx) wfCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+            // 不再使用 cachedGradAmbient 填充背景，但保留创建以防其他代码引用（实际未引用）
+            cachedGradAmbient = wfCtx.createRadialGradient(
+                logicalWidth * 0.5, logicalHeight * 0.5, 0, 
+                logicalWidth * 0.5, logicalHeight * 0.5, logicalWidth * 0.9
+            );
+            cachedGradAmbient.addColorStop(0, 'rgba(4, 5, 8, 0.95)');
+            cachedGradAmbient.addColorStop(1, 'rgba(2, 3, 5, 1.0)');
+
+            // 氛围光晕依旧保留
+            const baseRefY = logicalHeight * 0.78 + 16; 
+            const auraRadius = logicalWidth * 0.85;
+
+            cachedGradAuraCold = wfCtx.createRadialGradient(
+                logicalWidth * 0.5, baseRefY, 0,
+                logicalWidth * 0.5, baseRefY, auraRadius
+            );
+            cachedGradAuraCold.addColorStop(0, 'rgba(100, 180, 255, 0.22)'); 
+            cachedGradAuraCold.addColorStop(0.5, 'rgba(50, 100, 200, 0.06)');
+            cachedGradAuraCold.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            cachedGradAuraWarm = wfCtx.createRadialGradient(
+                logicalWidth * 0.5, baseRefY, 0,
+                logicalWidth * 0.5, baseRefY, auraRadius
+            );
+            cachedGradAuraWarm.addColorStop(0, 'rgba(255, 180, 100, 0.18)'); 
+            cachedGradAuraWarm.addColorStop(0.5, 'rgba(200, 120, 50, 0.05)');
+            cachedGradAuraWarm.addColorStop(1, 'rgba(0, 0, 0, 0)');
+
+            initParticles(); 
+            initBokehParticles(); 
+        }
+
+        function startWaveformRender() {
+            if (!wfCtx) return;
+            const infoEl = document.getElementById('wf-info');
+
+            initGlowSprites();
+            initBokehSprite(); 
+
+            function draw() {
+                animFrameId = requestAnimationFrame(draw);
+                const width = logicalWidth;
+                const height = logicalHeight;
+                if (width <= 0 || height <= 0) return;
+
+                if (analyser && !isDemoMode) {
+                    analyser.getByteTimeDomainData(dataArray);
+                    analyser.getByteFrequencyData(freqArray);
+                }
+
+                let sumSq = 0;
+                const arrayLen = analyser ? analyser.fftSize : 256;
+                for (let i = 0; i < arrayLen; i++) {
+                    const v = (analyser && !isDemoMode) ? ((dataArray[i] - 128) / 128) : 0;
+                    sumSq += v * v;
+                }
+                let rms = Math.sqrt(sumSq / arrayLen);
+
+                if (isDemoMode) {
+                    for (let i = 0; i < freqArray.length; i++) {
+                        const norm = i / freqArray.length;
+                        const wave1 = Math.sin(norm * Math.PI * 2.2 - globalTick * 0.02) * 58;
+                        const wave2 = Math.sin(norm * Math.PI * 6.0 + globalTick * 0.04) * 15;
+                        const wave3 = Math.cos(norm * Math.PI * 1.0 - globalTick * 0.01) * 30;
+                        const noise = Math.random() * 4; 
+                        
+                        const baseVal = 110 + wave1 + wave2 + wave3 + noise;
+                        freqArray[i] = Math.max(10, Math.min(240, baseVal));
+                    }
+                    rms = 0.06 + Math.sin(globalTick * 0.02) * 0.04;
+                }
+
+                smoothedRMS += (rms - smoothedRMS) * 0.08; 
+                colorT = Math.min(1.0, Math.max(0.0, smoothedRMS / 0.16)); 
+
+                if (infoEl) {
+                    infoEl.textContent = `RMS: ${rms.toFixed(3)} | Temp: ${colorT.toFixed(2)}`;
+                }
+
+                // 1. 清除画布 (透明)
+                wfCtx.clearRect(0, 0, width, height);
+                // 不再填充任何背景色，让毛玻璃层显示出来
+
+                // 2. 呼吸氛围光晕
+                const auraAlpha = Math.min(0.7, smoothedRMS * 3.5); 
+                if (auraAlpha > 0.01) {
+                    wfCtx.globalAlpha = auraAlpha * (1.0 - colorT);
+                    wfCtx.fillStyle = cachedGradAuraCold;
+                    wfCtx.fillRect(0, 0, width, height);
+                    
+                    wfCtx.globalAlpha = auraAlpha * colorT;
+                    wfCtx.fillStyle = cachedGradAuraWarm;
+                    wfCtx.fillRect(0, 0, width, height);
+                    
+                    wfCtx.globalAlpha = 1.0; 
+                }
+
+                // 3. 景深粒子绘制
+                const energyBoost = smoothedRMS * 1.5; 
+                for (let i = 0; i < bokehParticles.length; i++) {
+                    const p = bokehParticles[i];
+                    
+                    p.y += p.speedY * (1.0 + energyBoost * 2);
+                    p.x += p.speedX;
+                    p.pulse += 0.008;
+
+                    if (p.y < -p.baseSize) {
+                        p.y = height + p.baseSize;
+                        p.x = Math.random() * width;
+                    }
+                    if (p.x < -p.baseSize) p.x = width + p.baseSize;
+                    if (p.x > width + p.baseSize) p.x = -p.baseSize;
+
+                    const currentScale = 1.0 + Math.sin(p.pulse) * 0.08 + energyBoost * 0.8;
+                    const currentOpacity = Math.min(0.28, p.baseOpacity * (1.0 + energyBoost * 3));
+                    const size = p.baseSize * currentScale;
+
+                    wfCtx.globalAlpha = currentOpacity;
+                    wfCtx.drawImage(bokehSpriteCanvas, p.x - size / 2, p.y - size / 2, size, size);
+                }
+                wfCtx.globalAlpha = 1.0; 
+
+                const baselineY = height * 0.78;           
+                const maxUsefulBin = Math.max(24, Math.floor(freqArray.length * 0.18)); 
+                const maxHeight = baselineY * 0.88; 
+                
+                // 自动电平峰值计算
+                let currentFramePeak = 0;
+                for (let k = 0; k < maxUsefulBin; k++) {
+                    const val = freqArray[k] || 0;
+                    if (val > currentFramePeak) currentFramePeak = val;
+                }
+                if (currentFramePeak < NOISE_THRESHOLD + 10) {
+                    dynamicMax += (180 - dynamicMax) * 0.02; 
+                } else {
+                    if (currentFramePeak > dynamicMax) {
+                        dynamicMax += (currentFramePeak - dynamicMax) * 0.7; 
+                    } else {
+                        dynamicMax += (currentFramePeak - dynamicMax) * 0.005; 
+                    }
+                }
+                const activeRange = Math.max(140, dynamicMax);
+
+                // 动态水面耀斑
+                const breathAmp = Math.min(1.0, rms * 4.5);
+                const flareRadius = width * (0.24 + breathAmp * 0.12);
+                const flareGrad = wfCtx.createRadialGradient(width * 0.5, baselineY + 16, 0, width * 0.5, baselineY + 16, flareRadius);
+                flareGrad.addColorStop(0, getDynamicColor(0.4 + breathAmp * 0.15)); 
+                flareGrad.addColorStop(0.3, getDynamicColor(0.12 + breathAmp * 0.08)); 
+                flareGrad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                wfCtx.fillStyle = flareGrad;
+                wfCtx.beginPath();
+                wfCtx.arc(width * 0.5, baselineY + 16, flareRadius, 0, Math.PI * 2);
+                wfCtx.fill();
+
+                // 物理运算 - 计算每个频柱的弧形基准线 Y 值
+                for (let i = 0; i < TOTAL_BARS; i++) {
+                    calculatedX[i] = (i + 0.5) * (width / TOTAL_BARS);
+
+                    const curveOffset = Math.sin((i / TOTAL_BARS) * Math.PI) * 32;
+                    calculatedBaselineY[i] = baselineY + curveOffset;
+
+                    const sampleIndex = Math.floor(Math.pow(i / (TOTAL_BARS - 1), 1.3) * (maxUsefulBin - 1));
+                    let value = freqArray[sampleIndex] || 0;
+
+                    if (value < NOISE_THRESHOLD) {
+                        value = 0;
+                    } else {
+                        value = value - NOISE_THRESHOLD;
+                    }
+
+                    const divisor = Math.max(10, activeRange - NOISE_THRESHOLD);
+                    let normalized = value / divisor;
+
+                    const freqBoost = 1.0 + Math.pow(i / (TOTAL_BARS - 1), 1.5) * 2.2;
+                    normalized *= freqBoost;
+                    const contourBoost = 1.0 + Math.sin((i / TOTAL_BARS) * Math.PI) * 0.22;
+                    normalized *= contourBoost;
+
+                    if (normalized > 0) {
+                        normalized = Math.pow(normalized, 1.25); 
+                    }
+
+                    const targetPercent = Math.min(1.0, normalized * 0.95);
+                    const targetHeight = targetPercent * maxHeight;
+
+                    if (targetHeight > renderedHeights[i]) {
+                        renderedHeights[i] += (targetHeight - renderedHeights[i]) * 0.18; 
+                    } else {
+                        renderedHeights[i] += (targetHeight - renderedHeights[i]) * 0.07; 
+                    }
+
+                    const ambientTremble = Math.sin(globalTick * 0.04 + i * 0.1) * 1.5;
+                    calculatedH[i] = Math.max(8.0, renderedHeights[i] + ambientTremble);
+                }
+
+                // 倒影弦线绘制
+                const maxReflectY = baselineY + maxHeight * 0.62 + 32;
+                const reflectLineGrad = wfCtx.createLinearGradient(0, baselineY, 0, maxReflectY);
+                reflectLineGrad.addColorStop(0, getDynamicColor(0.20));  
+                reflectLineGrad.addColorStop(0.4, getDynamicColor(0.08)); 
+                reflectLineGrad.addColorStop(1, getDynamicColor(0.0));   
+
+                wfCtx.beginPath();
+                wfCtx.lineWidth = 1.2;
+                wfCtx.strokeStyle = reflectLineGrad; 
+                const rSteps = 14; 
+                for (let i = 0; i < TOTAL_BARS; i++) {
+                    const x = calculatedX[i];
+                    const barBaselineY = calculatedBaselineY[i];
+                    const reflectionMaxH = calculatedH[i] * 0.62; 
+                    wfCtx.moveTo(x, barBaselineY);
+                    for (let j = 1; j <= rSteps; j++) {
+                        const ratio = j / rSteps;
+                        const ry = barBaselineY + ratio * reflectionMaxH;
+
+                        const wave1 = Math.sin(ratio * 8.5 - globalTick * 0.07) * 2.2;
+                        const wave2 = Math.cos(ratio * 16.0 + globalTick * 0.04) * 1.1;
+                        const waveX = (wave1 + wave2) * (0.8 + ratio * 3.8);
+
+                        wfCtx.lineTo(x + waveX, ry);
+                    }
+                }
+                wfCtx.stroke();
+
+                // 倒影末梢珍珠绘制
+                for (let i = 0; i < TOTAL_BARS; i++) {
+                    const x = calculatedX[i];
+                    const barBaselineY = calculatedBaselineY[i];
+                    const reflectionMaxH = calculatedH[i] * 0.62; 
+                    const pearlRy = barBaselineY + reflectionMaxH;
+
+                    const wave1_pearl = Math.sin(8.5 - globalTick * 0.07) * 2.2;
+                    const wave2_pearl = Math.cos(16.0 + globalTick * 0.04) * 1.1;
+                    const pearlWaveX = (wave1_pearl + wave2_pearl) * 4.6; 
+                    const px = x + pearlWaveX;
+
+                    const depthRatio = Math.min(1.0, reflectionMaxH / (maxHeight * 0.62));
+                    const pearlAlpha = 0.12 * (1.0 - depthRatio * 0.85); 
+
+                    wfCtx.beginPath();
+                    wfCtx.fillStyle = getDynamicColor(pearlAlpha);
+                    wfCtx.moveTo(px + 3.2, pearlRy);
+                    wfCtx.arc(px, pearlRy, 3.2, 0, Math.PI * 2);
+                    wfCtx.fill();
+                }
+
+                // 批量绘制实体主干
+                wfCtx.beginPath();
+                wfCtx.lineWidth = 1.5;
+                wfCtx.strokeStyle = getDynamicColor(0.35);
+                for (let i = 0; i < TOTAL_BARS; i++) {
+                    const barBaselineY = calculatedBaselineY[i];
+                    wfCtx.moveTo(calculatedX[i], barBaselineY);
+                    wfCtx.lineTo(calculatedX[i], barBaselineY - calculatedH[i]);
+                }
+                wfCtx.stroke();
+
+                // 批量渲染实体珍珠帽贴图
+                const baseRadius = Math.max(4.5, Math.min(8.0, (width / TOTAL_BARS) * 0.42));
+                const spriteScale = baseRadius / 10; 
+                const drawSize = SPRITE_SIZE * spriteScale;
+                const halfDrawSize = drawSize / 2;
+
+                wfCtx.globalAlpha = 1 - colorT;
+                for (let i = 0; i < TOTAL_BARS; i++) {
+                    const x = calculatedX[i];
+                    const barBaselineY = calculatedBaselineY[i];
+                    const topY = barBaselineY - calculatedH[i];
+                    wfCtx.drawImage(glowSpriteCold, x - halfDrawSize, topY - halfDrawSize, drawSize, drawSize);
+                }
+
+                wfCtx.globalAlpha = colorT;
+                for (let i = 0; i < TOTAL_BARS; i++) {
+                    const x = calculatedX[i];
+                    const barBaselineY = calculatedBaselineY[i];
+                    const topY = barBaselineY - calculatedH[i];
+                    wfCtx.drawImage(glowSpriteWarm, x - halfDrawSize, topY - halfDrawSize, drawSize, drawSize);
+                }
+                wfCtx.globalAlpha = 1.0; 
+
+                // 悬浮气泡绘制
+                for (let i = 0; i < TOTAL_BARS - 1; i++) {
+                    const leftX = calculatedX[i];
+                    const rightX = calculatedX[i + 1];
+                    const gapX = (leftX + rightX) / 2; 
+
+                    const leftBaseline = calculatedBaselineY[i];
+                    const rightBaseline = calculatedBaselineY[i + 1];
+                    const gapBaselineY = (leftBaseline + rightBaseline) / 2; 
+
+                    const leftH = calculatedH[i];
+                    const rightH = calculatedH[i + 1];
+                    const gapH = (leftH + rightH) / 2; 
+
+                    const particles = gapParticles[i];
+                    if (particles) {
+                        particles.forEach(p => {
+                            p.yRatio += p.speed;
+                            if (p.yRatio > 1.0) {
+                                p.yRatio = 0; 
+                                p.size = 0.8 + Math.random() * 2.5;
+                                p.opacity = 0.15 + Math.random() * 0.65;
+                            }
+
+                            const py = gapBaselineY - (p.yRatio * gapH);
+                            wfCtx.beginPath();
+                            wfCtx.arc(gapX, py, p.size, 0, Math.PI * 2);
+                            wfCtx.fillStyle = getDynamicColor(p.opacity);
+                            wfCtx.fill();
+
+                            const reflectionMaxH_gap = gapH * 0.62;
+                            const ry = gapBaselineY + (p.yRatio * reflectionMaxH_gap);
+
+                            const wave1_gap = Math.sin(p.yRatio * 8.5 - globalTick * 0.07) * 2.2;
+                            const wave2_gap = Math.cos(p.yRatio * 16.0 + globalTick * 0.04) * 1.1;
+                            const waveX_gap = (wave1_gap + wave2_gap) * (0.8 + p.yRatio * 3.8);
+
+                            wfCtx.beginPath();
+                            wfCtx.arc(gapX + waveX_gap, ry, p.size * 0.75, 0, Math.PI * 2);
+                            const fadeAlpha = p.opacity * 0.35 * (1.0 - p.yRatio);
+                            wfCtx.fillStyle = getDynamicColor(fadeAlpha);
+                            wfCtx.fill();
+                        });
+                    }
+                }
+
+                // 横向网格波纹线
+                wfCtx.beginPath();
+                wfCtx.strokeStyle = getDynamicColor(0.015);
+                wfCtx.lineWidth = 1;
+                for (let r = 0; r < 6; r++) {
+                    const waveY = baselineY + 16 + (r * 22) + Math.sin(globalTick * 0.02 + r) * 2;
+                    wfCtx.moveTo(0, waveY);
+                    wfCtx.lineTo(width, waveY);
+                }
+                wfCtx.stroke();
+
+                globalTick++;
+            }
+            draw();
+        }
+
+        window.addEventListener('load', () => {
+            initParticles();
+            initVoiceAssistant();
+        });
+
+        const silentActivate = () => {
+            initVoiceAssistant();
+            document.removeEventListener('click', silentActivate);
+            document.removeEventListener('keydown', silentActivate);
+            document.removeEventListener('touchstart', silentActivate);
+        };
+
+        document.addEventListener('click', silentActivate);
+        document.addEventListener('keydown', silentActivate);
+        document.addEventListener('touchstart', silentActivate);
+    </script>
+</body>
+</html>
