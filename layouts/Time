@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>A527 Spatial Terminal - Apple Layering Edition</title>
+    <style>
+        :root {
+            /* 氛围光球的色彩变量，由 JS 随昼夜节律中央同步 */
+            --bg-dynamic-1: #0f1824;
+            --bg-dynamic-2: #020509;
+            --aura-color-1: rgba(0, 122, 255, 0.12);
+            --aura-color-2: rgba(255, 149, 0, 0.05);
+            
+            /* 黑色大背景磨砂玻璃 */
+            --apple-glass-bg: rgba(10, 10, 12, 0.76);
+            --apple-glass-border: rgba(255, 255, 255, 0.12);
+            --text-main-color: #f5f5f7;
+            --text-dim-color: rgba(245, 245, 247, 0.45);
+            
+            /* 日历高光 */
+            --cal-active-bg: #ff9500;
+            --cal-active-text: #000000;
+            
+            /* 苹果标准VI核心固定色值 */
+            --apple-orange: #ff9500;
+            --apple-blue: #007aff;
+            --apple-green: #34c759;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden !important;
+            background: linear-gradient(135deg, var(--bg-dynamic-1) 0%, var(--bg-dynamic-2) 100%);
+            transition: background 1.8s cubic-bezier(0.25, 1, 0.5, 1);
+            color: var(--text-main-color);
+            font-family: -apple-system, "SF Pro Display", "SF Pro Text", "Helvetica Neue", sans-serif;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            
+            text-rendering: optimizeLegibility;
+            font-feature-settings: "kern" 1, "tnum" 1;
+        }
+
+        /* ==================== 层次感 Layer 1: 底层流体氛围光 ==================== */
+        .ambient-aura-wrapper {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 1;
+            overflow: hidden;
+        }
+        .aura-blob {
+            position: absolute;
+            border-radius: 50%;
+            filter: blur(120px);
+            mix-blend-mode: screen;
+            opacity: 0.85;
+            transition: background 1.8s ease;
+        }
+        .aura-1 {
+            width: 55vw; height: 55vw;
+            top: -10%; left: -5%;
+            background: radial-gradient(circle, var(--aura-color-1) 0%, rgba(0,0,0,0) 70%);
+            animation: float-aura-1 25s infinite ease-in-out;
+        }
+        .aura-2 {
+            width: 50vw; height: 50vw;
+            bottom: -15%; right: -5%;
+            background: radial-gradient(circle, var(--aura-color-2) 0%, rgba(0,0,0,0) 70%);
+            animation: float-aura-2 20s infinite ease-in-out;
+        }
+
+        /* ==================== 层次感 Layer 2: 中层高折射玻璃底盘 ==================== */
+        .unified-dashboard {
+            position: relative;
+            z-index: 2; /* 浮于光球之上 */
+            width: 98vw;
+            height: 96vh;
+            max-width: 1920px;
+            max-height: 350px;
+            background: var(--apple-glass-bg) !important;
+            
+            /* 细微的外部折射边缘 + 内部凹陷的高光阴影，共同挤压出边缘厚度 */
+            border: 1px solid var(--apple-glass-border);
+            backdrop-filter: blur(45px) saturate(140%);
+            -webkit-backdrop-filter: blur(45px) saturate(140%);
+            border-radius: 24px;
+            padding: 2.2vh 1.8vw;
+            display: flex;
+            align-items: stretch;
+            gap: 1.8vw;
+            
+            /* 空间悬浮投影（由柔和的远景阴影和锐利的近景阴影叠合而成） */
+            box-shadow: 
+                inset 0 1px 1px rgba(255, 255, 255, 0.12),
+                inset 0 -1px 1px rgba(0, 0, 0, 0.4),
+                0 4px 12px rgba(0, 0, 0, 0.25),
+                0 20px 60px rgba(0, 0, 0, 0.55);
+                
+            /* 极轻微的外边缘扫光动画 */
+            animation: border-white-breath-sweep 9s infinite ease-in-out;
+            transition: background 1.8s ease, border 1.8s ease;
+        }
+
+        /* 3D 雕刻风格凹槽分割线 */
+        .col-divider {
+            width: 2px;
+            background: linear-gradient(to bottom, rgba(255,255,255,0) 0%, rgba(255,255,255,0.06) 20%, rgba(255,255,255,0.06) 80%, rgba(255,255,255,0) 100%);
+            border-right: 1px solid rgba(0, 0, 0, 0.35); /* 形成立体阴影边 */
+            align-self: stretch;
+        }
+
+        /* ==================== 层次感 Layer 3: 前层模块及物理微背光 ==================== */
+        .dashboard-col {
+            flex: 1;
+            min-width: 0;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            background: transparent !important;
+            border: none !important;
+            box-shadow: none !important;
+            overflow: hidden;
+            position: relative;
+        }
+
+        /* 在关键图形画布后放置微弱的物理局部背光 */
+        .specular-backlight {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%; height: 80%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.03) 0%, rgba(255, 255, 255, 0) 70%);
+            pointer-events: none;
+            z-index: 1;
+        }
+
+        .text-ellipsis {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        /* 第一区: 生动气象 */
+        .weather-inner { display: flex; align-items: center; justify-content: space-between; height: 100%; min-width: 0; position: relative; z-index: 2; }
+        .w-canvas-side { width: 48%; height: 100%; min-width: 0; min-height: 0; }
+        #canvas-weather { width: 100%; height: 100%; display: block; }
+        .w-text-side { width: 50%; display: flex; flex-direction: column; justify-content: center; min-width: 0; }
+        .temp-val { font-size: clamp(24px, 3.4vw, 44px); font-weight: 700; line-height: 1; letter-spacing: -1px; text-shadow: 0 2px 8px rgba(0,0,0,0.3); }
+        .cond-label { font-size: clamp(9px, 0.8vw, 11px); font-weight: 800; color: var(--apple-orange); margin-top: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+
+        /* 第二区: 迷你月历 */
+        .cal-container { display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; position: relative; z-index: 2; }
+        .cal-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px; }
+        .cal-month-title { font-size: clamp(11px, 1.0vw, 13px); font-weight: 700; letter-spacing: 0.5px; text-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+        .cal-holiday-tag { font-size: clamp(8px, 0.7vw, 10px); font-weight: 700; background: rgba(255, 149, 0, 0.15); color: #ff9500; padding: 1px 5px; border-radius: 4px; }
+        .cal-grid-matrix { flex: 1; display: grid; grid-template-columns: repeat(7, 1fr); gap: 1px; align-content: space-between; min-height: 0; }
+        .cal-weekday-label { font-size: 8px; font-weight: 800; text-align: center; color: var(--text-dim-color); transition: color 1.8s ease;}
+        .cal-day-cell { font-size: clamp(9px, 0.85vw, 11px); font-weight: 600; text-align: center; display: flex; align-items: center; justify-content: center; border-radius: 50%; color: var(--text-main-color); aspect-ratio: 1/1; transition: color 1.8s ease; font-variant-numeric: tabular-nums; }
+        
+        .cal-day-cell.active { 
+            background: var(--cal-active-bg) !important; 
+            color: var(--cal-active-text) !important; 
+            font-weight: 800; 
+            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.35);
+        }
+        .cal-day-cell.muted { color: rgba(245, 245, 247, 0.15) !important; }
+
+        /* 第三区: 时钟 */
+        .clock-box { position: relative; }
+        #canvas-classic-clock { width: 100%; height: 100%; display: block; position: relative; z-index: 2; }
+
+        /* 第四区: 数字自转地球 (过滤器光晕强化) */
+        .earth-box { position: relative; }
+        #canvas-real-earth { 
+            width: 100%; height: 100%; display: block; 
+            position: relative; z-index: 2; 
+            /* 微弱发光环绕，托起地球的三维边缘 */
+            filter: drop-shadow(0 0 8px rgba(0, 122, 255, 0.15));
+        }
+
+        /* 第五区: 多时区面板 */
+        .zones-stack { display: flex; flex-direction: column; justify-content: space-between; height: 100%; min-width: 0; position: relative; z-index: 2; }
+        .zone-bar {
+            flex: 1; display: flex; justify-content: space-between; align-items: center;
+            padding: 0 0.8vw; margin: 1px 0; border-radius: 6px; min-width: 0;
+            background: rgba(255, 255, 255, 0.04);
+            border-left: 2px solid rgba(255, 255, 255, 0.12);
+            box-shadow: inset 0 1px 1px rgba(255,255,255,0.02);
+            transition: background 1.8s ease;
+        }
+        .z-name { font-size: clamp(9px, 0.8vw, 11px); font-weight: 700; letter-spacing: 0.5px; }
+        .z-time { font-size: clamp(12px, 1.3vw, 15px); font-weight: 600; font-family: monospace; }
+
+        /* ==================== 动画关键帧 ==================== */
+        @keyframes float-aura-1 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(8vw, 6vh) scale(1.1); }
+        }
+        @keyframes float-aura-2 {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            50% { transform: translate(-6vw, -8vh) scale(1.08); }
+        }
+
+        @keyframes border-white-breath-sweep {
+            0%, 100% {
+                border-color: rgba(255, 255, 255, 0.12);
+                box-shadow: 
+                    inset 0 1px 1px rgba(255, 255, 255, 0.12),
+                    inset 0 -1px 1px rgba(0, 0, 0, 0.4),
+                    0 4px 12px rgba(0, 0, 0, 0.25),
+                    0 20px 60px rgba(0, 0, 0, 0.5);
+            }
+            50% {
+                border-color: rgba(255, 255, 255, 0.45);
+                box-shadow: 
+                    inset 0 1px 1.5px rgba(255, 255, 255, 0.2),
+                    inset 0 -1px 1.5px rgba(0, 0, 0, 0.4),
+                    0 6px 16px rgba(0, 0, 0, 0.3),
+                    0 24px 68px rgba(0, 0, 0, 0.55);
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 层次感 Layer 1: 底层流动的自适应氛围光球 -->
+    <div class="ambient-aura-wrapper">
+        <div class="aura-blob aura-1"></div>
+        <div class="aura-blob aura-2"></div>
+    </div>
+
+    <!-- 层次感 Layer 2: 统一化折射磨砂中控卡片 -->
+    <div class="unified-dashboard">
+        
+        <!-- 子模块一：生动气象 -->
+        <div class="dashboard-col">
+            <!-- 模块背部柔和微光 -->
+            <div class="specular-backlight"></div>
+            <div class="weather-inner">
+                <div class="w-canvas-side"><canvas id="canvas-weather"></canvas></div>
+                <div class="w-text-side">
+                    <div class="temp-val text-ellipsis" id="txt-real-temp">24°C</div>
+                    <div class="cond-label text-ellipsis" id="txt-real-condition">RAINY</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 3D 凹槽分割线 A -->
+        <div class="col-divider"></div>
+
+        <!-- 子模块二：精细月历 -->
+        <div class="dashboard-col">
+            <div class="cal-container">
+                <div class="cal-header-row">
+                    <div class="cal-month-title text-ellipsis" id="lbl-cal-month-year">CALENDAR</div>
+                    <div class="cal-holiday-tag text-ellipsis" id="lbl-cal-holiday">LIVE</div>
+                </div>
+                <div class="cal-grid-matrix" id="box-calendar-matrix"></div>
+            </div>
+        </div>
+
+        <!-- 3D 凹槽分割线 B -->
+        <div class="col-divider"></div>
+
+        <!-- 子模块三：时钟 (背部垫入 SPECULAR 高光) -->
+        <div class="dashboard-col clock-box">
+            <div class="specular-backlight"></div>
+            <canvas id="canvas-classic-clock"></canvas>
+        </div>
+
+        <!-- 3D 凹槽分割线 C -->
+        <div class="col-divider"></div>
+
+        <!-- 子模块四：自转 3D 地球 -->
+        <div class="dashboard-col earth-box">
+            <div class="specular-backlight" style="background: radial-gradient(circle, rgba(0, 122, 255, 0.04) 0%, rgba(0,0,0,0) 70%);"></div>
+            <canvas id="canvas-real-earth"></canvas>
+        </div>
+
+        <!-- 3D 凹槽分割线 D -->
+        <div class="col-divider"></div>
+
+        <!-- 子模块五：多时区面板 -->
+        <div class="dashboard-col">
+            <div class="zones-stack">
+                <div class="zone-bar" style="border-left-color: var(--apple-orange); background: rgba(255,149,0,0.12);">
+                    <div class="z-name text-ellipsis" style="color: var(--apple-orange); font-weight:800;">BEIJING</div>
+                    <div class="z-time text-ellipsis" id="clk-pek">00:00</div>
+                </div>
+                <div class="zone-bar"><div class="z-name text-ellipsis">TOKYO</div><div class="z-time text-ellipsis" id="clk-tky">00:00</div></div>
+                <div class="zone-bar"><div class="z-name text-ellipsis">LONDON</div><div class="z-time text-ellipsis" id="clk-lon">00:00</div></div>
+                <div class="zone-bar"><div class="z-name text-ellipsis">NEW YORK</div><div class="z-time text-ellipsis" id="clk-ny">00:00</div></div>
+            </div>
+        </div>
+
+    </div>
+<script>
+    // 全局动态时间亮度因子
+    let globalBrightnessFactor = 1.0; 
+
+    // ==================== 核心逻辑1: 昼夜节律中央调度管道（增加氛围光气色变化） ====================
+    function updateCircadianRhythm(hours, minutes) {
+        const totalMinutes = hours * 60 + minutes;
+        globalBrightnessFactor = 1.0 - Math.abs(totalMinutes - 720) / 720;
+
+        const root = document.documentElement.style;
+
+        // 面板保持统一黑色磨砂质感，所以文字及指示器均保持亮灰白色阶以取得最高视觉对比
+        root.setProperty('--text-main-color', '#f5f5f7');
+        root.setProperty('--text-dim-color', 'rgba(245, 245, 247, 0.45)');
+
+        if (globalBrightnessFactor > 0.65) {
+            // 【白昼高亮外部背景 + 极高折射冷色氛围光球】
+            root.setProperty('--bg-dynamic-1', '#1a2838');
+            root.setProperty('--bg-dynamic-2', '#090f15');
+            root.setProperty('--aura-color-1', 'rgba(0, 122, 255, 0.15)');
+            root.setProperty('--aura-color-2', 'rgba(255, 149, 0, 0.05)');
+            root.setProperty('--cal-active-bg', '#ff9500'); 
+            root.setProperty('--cal-active-text', '#000000');
+        } 
+        else if (globalBrightnessFactor > 0.35) {
+            // 【黄昏/晨曦外部背景 + 暖系琥珀氛围光球】
+            root.setProperty('--bg-dynamic-1', '#11151c');
+            root.setProperty('--bg-dynamic-2', '#030508');
+            root.setProperty('--aura-color-1', 'rgba(255, 149, 0, 0.12)');
+            root.setProperty('--aura-color-2', 'rgba(0, 122, 255, 0.06)');
+            root.setProperty('--cal-active-bg', '#007aff');
+            root.setProperty('--cal-active-text', '#ffffff');
+        } 
+        else {
+            // 【深夜极致黑外部背景 + 幽深电磁蓝微光氛围光球】
+            root.setProperty('--bg-dynamic-1', '#04060a');
+            root.setProperty('--bg-dynamic-2', '#000000');
+            root.setProperty('--aura-color-1', 'rgba(0, 122, 255, 0.06)');
+            root.setProperty('--aura-color-2', 'rgba(255, 255, 255, 0.02)');
+            root.setProperty('--cal-active-bg', '#f5f5f7');
+            root.setProperty('--cal-active-text', '#000000');
+        }
+    }
+
+    function runMasterTimeline() {
+        const d = new Date();
+        const hrs = d.getHours(); const mins = d.getMinutes();
+        
+        updateCircadianRhythm(hrs, mins);
+
+        try {
+            document.getElementById('clk-pek').innerText = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Shanghai', hour12: false }).slice(0, 5);
+            document.getElementById('clk-tky').innerText = d.toLocaleTimeString('en-US', { timeZone: 'Asia/Tokyo', hour12: false }).slice(0, 5);
+            document.getElementById('clk-lon').innerText = d.toLocaleTimeString('en-US', { timeZone: 'Europe/London', hour12: false }).slice(0, 5);
+            document.getElementById('clk-ny').innerText = d.toLocaleTimeString('en-US', { timeZone: 'America/New_York', hour12: false }).slice(0, 5);
+        } catch (e) {}
+        drawAppleClassicClock(d);
+    }
+
+    // ==================== 核心逻辑2: 自适应月历 ====================
+    function renderFullAppleCalendar(d) {
+        try {
+            const currentDay = d.getDate(); const year = d.getFullYear(); const month = d.getMonth();
+            const monthNames = ["JANUARY", "FEBRUARY", "MARCH", "APRIL", "MAY", "JUNE", "JULY", "AUGUST", "SEPTEMBER", "OCTOBER", "NOVEMBER", "DECEMBER"];
+            document.getElementById('lbl-cal-month-year').innerText = `${monthNames[month]} ${year}`;
+
+            const matrixContainer = document.getElementById('box-calendar-matrix');
+            matrixContainer.innerHTML = '';
+
+            ['S', 'M', 'T', 'W', 'T', 'F', 'S'].forEach(w => {
+                const el = document.createElement('div'); el.className = 'cal-weekday-label'; el.innerText = w;
+                matrixContainer.appendChild(el);
+            });
+
+            const firstDayIndex = new Date(year, month, 1).getDay();
+            const totalDays = new Date(year, month + 1, 0).getDate();
+            const prevTotalDays = new Date(year, month, 0).getDate();
+
+            for (let i = firstDayIndex - 1; i >= 0; i--) {
+                const cell = document.createElement('div'); cell.className = 'cal-day-cell muted'; cell.innerText = prevTotalDays - i;
+                matrixContainer.appendChild(cell);
+            }
+            for (let day = 1; day <= totalDays; day++) {
+                const cell = document.createElement('div'); cell.className = 'cal-day-cell';
+                if (day === currentDay) cell.classList.add('active');
+                cell.innerText = day;
+                matrixContainer.appendChild(cell);
+            }
+            document.getElementById('lbl-cal-holiday').innerText = (d.getDay() === 0 || d.getDay() === 6) ? "WEEKEND" : "LIVE";
+        } catch(e) {}
+    }
+
+    // ==================== 核心逻辑3: 时钟高清重绘抗噪算法 ====================
+    const clockCanvas = document.getElementById('canvas-classic-clock');
+    function drawAppleClassicClock(d) {
+        if (!clockCanvas || !clockCanvas.getContext) return;
+        const ctx = clockCanvas.getContext('2d');
+        const rect = clockCanvas.parentElement.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        
+        if (clockCanvas.width !== rect.width * dpr || clockCanvas.height !== rect.height * dpr) {
+            clockCanvas.width = rect.width * dpr;
+            clockCanvas.height = rect.height * dpr;
+            clockCanvas.style.width = rect.width + 'px';
+            clockCanvas.style.height = rect.height + 'px';
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        const w = rect.width; const h = rect.height;
+        const cx = w / 2; const cy = h / 2;
+        const radius = Math.min(w, h) * 0.44; 
+        
+        ctx.clearRect(0, 0, w, h);
+        ctx.lineCap = 'round';
+
+        const pointerColor = '#f5f5f7';
+        const scaleMainColor = 'rgba(245,245,247,0.75)';
+        const scaleSubColor = 'rgba(245,245,247,0.12)';
+
+        for (let i = 0; i < 60; i++) {
+            const angle = i * (Math.PI / 30);
+            const isMain = i % 5 === 0;
+            ctx.beginPath();
+            ctx.strokeStyle = isMain ? scaleMainColor : scaleSubColor;
+            ctx.lineWidth = isMain ? radius * 0.022 : radius * 0.01;
+            const startR = isMain ? radius - (radius * 0.08) : radius - (radius * 0.04);
+            ctx.moveTo(cx + Math.cos(angle) * startR, cy + Math.sin(angle) * startR);
+            ctx.lineTo(cx + Math.cos(angle) * radius, cy + Math.sin(angle) * radius);
+            ctx.stroke();
+        }
+
+        const hrs = d.getHours(); const mins = d.getMinutes(); const secs = d.getSeconds(); const mss = d.getMilliseconds();
+        const totalSec = secs + mss / 1000; const totalMin = mins + totalSec / 60; const totalHr = (hrs % 12) + totalMin / 60;
+        
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+        ctx.shadowBlur = 5;
+        ctx.shadowOffsetX = 0.5;
+        ctx.shadowOffsetY = 2;
+
+        ctx.beginPath(); ctx.strokeStyle = pointerColor; ctx.lineWidth = radius * 0.045; 
+        ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos((totalHr / 12) * 2 * Math.PI - Math.PI / 2) * radius * 0.52, cy + Math.sin((totalHr / 12) * 2 * Math.PI - Math.PI / 2) * radius * 0.52); ctx.stroke();
+        
+        ctx.beginPath(); ctx.strokeStyle = pointerColor; ctx.lineWidth = radius * 0.03; 
+        ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos((totalMin / 60) * 2 * Math.PI - Math.PI / 2) * radius * 0.76, cy + Math.sin((totalMin / 60) * 2 * Math.PI - Math.PI / 2) * radius * 0.76); ctx.stroke();
+        
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetY = 3;
+        const secRad = (totalSec / 60) * 2 * Math.PI - Math.PI / 2;
+        ctx.beginPath(); ctx.strokeStyle = '#ff9500'; ctx.lineWidth = Math.max(1, radius * 0.012);
+        ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(secRad) * radius * 0.85, cy + Math.sin(secRad) * radius * 0.85); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx - Math.cos(secRad) * radius * 0.15, cy - Math.sin(secRad) * radius * 0.15); ctx.stroke();
+        ctx.beginPath(); ctx.arc(cx - Math.cos(secRad) * radius * 0.15, cy - Math.sin(secRad) * radius * 0.15, radius * 0.025, 0, 2*Math.PI); ctx.fillStyle = '#ff9500'; ctx.fill();
+
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.2)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetY = 1;
+        ctx.beginPath(); ctx.arc(cx, cy, radius * 0.05, 0, 2*Math.PI); ctx.fillStyle = pointerColor; ctx.fill();
+        ctx.beginPath(); ctx.arc(cx, cy, radius * 0.02, 0, 2*Math.PI); ctx.fillStyle = '#ff9500'; ctx.fill();
+    }
+
+    // ==================== 4. 数字自转地球渲染 (矢量高清) ====================
+    const earthCanvas = document.getElementById('canvas-real-earth');
+    let earthAngle = 1.0; let cloudAngle = 0.0; 
+
+    const realWorldGeoPaths = [
+        [[52,64], [72,66], [98,63], [116,60], [132,60], [138,50], [139,36], [123,30], [117,20], [106,14], [94,8], [76,10], [70,20], [56,23], [46,10], [30,29], [12,10], [14,-12], [20,-26], [26,-35], [32,-31], [40,-15], [46,4], [50,12], [40,22], [26,26], [10,34], [0,50], [16,62], [34,60]],
+        [[114,38], [120,38], [121,30], [118,22], [106,18], [104,8], [96,10], [98,20], [104,26], [110,32]],
+        [[-42,73], [-27,68], [-52,58], [-62,68]],
+        [[-74,60], [-90,56], [-117,53], [-127,46], [-125,32], [-115,30], [-108,22], [-100,24], [-92,14], [-83,22], [-82,30], [-68,42]],
+        [[-79,10], [-72,6], [-54,-6], [-42,-14], [-44,-26], [-60,-50], [-70,-54], [-76,-44], [-82,-22], [-82,-4]],
+        [[112,-24], [122,-18], [134,-14], [142,-18], [149,-30], [144,-38], [134,-36], [114,-36], [111,-30]],
+        [[44,-16], [47,-20], [45,-26], [42,-23]]
+    ];
+
+    const worldHighResPolygons = [];
+    realWorldGeoPaths.forEach(poly => {
+        const densePoly = [];
+        for (let i = 0; i < poly.length; i++) {
+            const p1 = poly[i]; const p2 = poly[(i + 1) % poly.length];
+            for (let t = 0; t <= 1; t += 0.12) {
+                densePoly.push({ lon: p1[0] * (1 - t) + p2[0] * t, lat: p1[1] * (1 - t) + p2[1] * t });
+            }
+        }
+        worldHighResPolygons.push(densePoly);
+    });
+
+    function renderEcoBlueGreenEarth() {
+        if (!earthCanvas || !earthCanvas.getContext) return;
+        const ctx = earthCanvas.getContext('2d');
+        const rect = earthCanvas.parentElement.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        
+        if (earthCanvas.width !== rect.width * dpr || earthCanvas.height !== rect.height * dpr) {
+            earthCanvas.width = rect.width * dpr;
+            earthCanvas.height = rect.height * dpr;
+            earthCanvas.style.width = rect.width + 'px';
+            earthCanvas.style.height = rect.height + 'px';
+        }
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+
+        const w = rect.width; const h = rect.height;
+        const cx = w / 2; const cy = h / 2;
+        const r = Math.min(w, h) * 0.44;
+
+        ctx.clearRect(0, 0, w, h);
+        earthAngle += 0.004; cloudAngle -= 0.0015; 
+
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        let oceanGrad = ctx.createRadialGradient(cx - r*0.2, cy - r*0.2, r * 0.1, cx, cy, r);
+        if (globalBrightnessFactor > 0.35) {
+            oceanGrad.addColorStop(0, '#29b0ff'); oceanGrad.addColorStop(0.7, '#0066eb'); oceanGrad.addColorStop(1, '#00338a');
+        } else {
+            oceanGrad.addColorStop(0, '#104a73'); oceanGrad.addColorStop(0.7, '#082952'); oceanGrad.addColorStop(1, '#020f21');
+        }
+        ctx.fillStyle = oceanGrad; ctx.fill();
+
+        const landColor = globalBrightnessFactor > 0.35 ? 'rgba(46, 204, 113, 0.95)' : 'rgba(34, 153, 84, 0.85)';
+        worldHighResPolygons.forEach(poly => {
+            ctx.beginPath(); let first = true;
+            poly.forEach(p => {
+                let dynamicLon = (p.lon + (earthAngle * 180 / Math.PI)) % 360;
+                if (dynamicLon > 180) dynamicLon -= 360;
+                if (dynamicLon < -180) dynamicLon += 360;
+                let radLon = dynamicLon * Math.PI / 180; let radLat = p.lat * Math.PI / 180;
+                if (Math.cos(radLon) > 0) {
+                    let tx = cx + r * Math.sin(radLon) * Math.cos(radLat); let ty = cy - r * Math.sin(radLat);
+                    if (first) { ctx.moveTo(tx, ty); first = false; } else { ctx.lineTo(tx, ty); }
+                } else { first = true; }
+            });
+            ctx.closePath(); ctx.fillStyle = landColor; ctx.fill();
+        });
+
+        ctx.save(); ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.clip();
+        ctx.fillStyle = globalBrightnessFactor > 0.35 ? 'rgba(255, 255, 255, 0.25)' : 'rgba(255,255,255,0.12)';
+        for (let i = 0; i < 4; i++) {
+            let cLon = ((i * 90) + (cloudAngle * 180 / Math.PI)) % 360;
+            if (cLon > 180) cLon -= 360;
+            let radCLon = cLon * Math.PI / 180;
+            if (Math.cos(radCLon) > 0) {
+                let ctxX = cx + r * Math.sin(radCLon) * 0.8;
+                ctx.beginPath();
+                ctx.ellipse(ctxX, cy - 20 + (i*10), r*0.3, r*0.06, Math.PI/12, 0, 2*Math.PI);
+                ctx.ellipse(ctxX - 20, cy + 15 - (i*5), r*0.2, r*0.04, -Math.PI/16, 0, 2*Math.PI);
+                ctx.fill();
+            }
+        }
+        ctx.restore();
+
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI);
+        let lightGrad = ctx.createRadialGradient(cx - r*0.4, cy - r*0.4, 0, cx, cy, r);
+        if (globalBrightnessFactor > 0.35) {
+            lightGrad.addColorStop(0, 'rgba(255,255,255,0.35)'); lightGrad.addColorStop(0.5, 'rgba(255,255,255,0.05)'); lightGrad.addColorStop(1, 'rgba(0,0,0,0.4)');
+        } else {
+            lightGrad.addColorStop(0, 'rgba(255,255,255,0.10)'); lightGrad.addColorStop(0.4, 'rgba(0,0,0,0.4)'); lightGrad.addColorStop(1, 'rgba(0,0,0,0.85)');
+        }
+        ctx.fillStyle = lightGrad; ctx.fill();
+
+        ctx.beginPath(); ctx.arc(cx, cy, r, 0, 2 * Math.PI); ctx.strokeStyle = 'rgba(255,255,255,0.3)'; ctx.lineWidth = 1.0; ctx.stroke();
+        requestAnimationFrame(renderEcoBlueGreenEarth);
+    }
+
+    // ==================== 核心逻辑5: 生动天气微粒引擎 ====================
+    const weatherCanvas = document.getElementById('canvas-weather');
+    let liveCondition = 'RAINY'; let rainDrops = []; let weatherTick = 0;
+
+    function resizeWeatherCanvas() {
+        if (!weatherCanvas) return;
+        const rect = weatherCanvas.parentElement.getBoundingClientRect();
+        const dpr = window.devicePixelRatio || 1;
+        weatherCanvas.width = rect.width * dpr;
+        weatherCanvas.height = rect.height * dpr;
+        weatherCanvas.style.width = rect.width + 'px';
+        weatherCanvas.style.height = rect.height + 'px';
+        
+        rainDrops = [];
+        for(let i=0; i<25; i++) {
+            rainDrops.push({ 
+                x: Math.random() * rect.width, 
+                y: Math.random() * rect.height, 
+                vy: Math.random() * 3 + 4, 
+                len: Math.random() * 5 + 5 
+            });
+        }
+    }
+
+    function runWeatherPhysicsLoop() {
+        if (!weatherCanvas || !weatherCanvas.getContext) return;
+        const ctx = weatherCanvas.getContext('2d');
+        const dpr = window.devicePixelRatio || 1;
+        
+        const pw = weatherCanvas.width;
+        const ph = weatherCanvas.height;
+        if (pw === 0 || ph === 0) return;
+        
+        const w = pw / dpr;
+        const h = ph / dpr;
+        const cx = w / 2; const cy = h / 2;
+
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.scale(dpr, dpr);
+        ctx.clearRect(0, 0, w, h); 
+        
+        weatherTick += 0.04;
+
+        if (liveCondition === 'SUNNY') {
+            let r = Math.min(w, h) * 0.26; let pulseR = r * (1 + Math.sin(weatherTick) * 0.04);
+            let sunGrad = ctx.createRadialGradient(cx, cy, pulseR*0.3, cx, cy, pulseR*1.2);
+            sunGrad.addColorStop(0, '#ffb300'); sunGrad.addColorStop(0.7, '#ff9500'); sunGrad.addColorStop(1, 'rgba(255,149,0,0)');
+            ctx.beginPath(); ctx.arc(cx, cy, pulseR*1.2, 0, 2*Math.PI); ctx.fillStyle = sunGrad; ctx.fill();
+        } 
+        else {
+            let cloudShiftX = Math.sin(weatherTick) * 2.5; let cloudShiftY = Math.cos(weatherTick * 0.7) * 1.2;
+            if (liveCondition === 'RAINY' && Math.random() > 0.985) { ctx.fillStyle = 'rgba(255,255,255,0.18)'; ctx.fillRect(0,0,w,h); }
+            
+            ctx.fillStyle = 'rgba(245, 245, 247, 0.75)';
+            ctx.beginPath();
+            ctx.arc(cx - 12 + cloudShiftX, cy + 3 + cloudShiftY, 10, 0, 2*Math.PI); ctx.arc(cx + cloudShiftX, cy - 3 + cloudShiftY, 15, 0, 2*Math.PI); ctx.arc(cx + 12 + cloudShiftX, cy + 3 + cloudShiftY, 9, 0, 2*Math.PI);
+            ctx.rect(cx - 12 + cloudShiftX, cy - 3 + cloudShiftY, 24, 15); ctx.fill();
+            
+            if (liveCondition === 'RAINY') {
+                ctx.strokeStyle = 'rgba(0, 122, 255, 0.55)';
+                ctx.lineWidth = 1.5;
+                rainDrops.forEach(p => {
+                    ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x - 0.8, p.y + p.len); ctx.stroke();
+                    p.y += p.vy; if(p.y > h) { p.y = -10; p.x = Math.random()*w; }
+                });
+            }
+        }
+        requestAnimationFrame(runWeatherPhysicsLoop);
+    }
+
+    async function fetchLiveWeatherData() {
+        try {
+            const controller = new AbortController(); setTimeout(() => controller.abort(), 2500); 
+            const response = await fetch('https://open-meteo.com/v1/forecast?latitude=34.0522&longitude=-118.2437&current_weather=true', { signal: controller.signal });
+            const result = await response.json();
+            if (result && result.current_weather) {
+                const temp = Math.round(result.current_weather.temperature); const code = result.current_weather.weathercode;
+                document.getElementById('txt-real-temp').innerText = `${temp}°C`;
+                if([1,2,3].includes(code)) liveCondition = 'CLOUDY';
+                else if([51,53,55,61,63,65,80,81,82].includes(code)) liveCondition = 'RAINY';
+                else liveCondition = 'SUNNY';
+                document.getElementById('txt-real-condition').innerText = liveCondition;
+            }
+        } catch(e) {
+            document.getElementById('txt-real-temp').innerText = "24°C"; document.getElementById('txt-real-condition').innerText = "RAINY";
+        }
+    }
+
+    // ==================== 引导启动核心控制链 ====================
+    window.addEventListener('resize', () => { 
+        resizeWeatherCanvas(); 
+    });
+    
+    // 初始化画布分辨率
+    resizeWeatherCanvas();
+    
+    renderFullAppleCalendar(new Date());
+    setInterval(runMasterTimeline, 16); 
+    runWeatherPhysicsLoop();
+    renderEcoBlueGreenEarth();
+
+    fetchLiveWeatherData();
+    setInterval(fetchLiveWeatherData, 600000);
+</script>
+</body>
+</html>
