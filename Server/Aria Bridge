@@ -1,1 +1,222 @@
 
+import os
+import socket
+import time
+import logging
+import requests
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+
+# Initialize Flask and CORS
+app = Flask(__name__)
+CORS(app, resources={r"/*": {"origins": "*"}})
+
+# Logging settings
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR)
+
+# Resource folder path
+UPLOAD_FOLDER = os.path.expanduser("~/storage/downloads/a527_assets")
+if not os.path.exists(UPLOAD_FOLDER):
+    os.makedirs(UPLOAD_FOLDER)
+
+# --- Core state bucket (v18 enhanced + v10 video state) ---
+storage = {
+    "pc_ip": "disconnected",
+    "stats": {
+        "cpu": "--%", "mem": "--%", "lyric": "",
+        "progress": 0, "timestamp": 0,
+        "spectrum": [0] * 64
+    },
+    "last_seen": 0,
+    "current_video": "",      # v10: currently playing video filename
+    "upload_progress": 0,     # v10: upload progress
+    "ai_reply_text": ""       # v18: AI reply text (updated by /upload_voice)
+}
+
+def get_local_ip():
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(('8.8.8.8', 80))
+        ip = s.getsockname()[0]
+    except Exception:
+        ip = "127.0.0.1"
+    finally:
+        s.close()
+    return ip
+
+# ==================== Basic hosting interface ====================
+
+@app.route('/')
+def index():
+    """Serve index.html from the current directory"""
+    return send_from_directory('.', 'index.html')
+
+# ==================== v18 Voice interface ====================
+
+@app.route('/upload_voice', methods=['POST'])
+def upload_voice():
+    """Receive AI voice file uploaded from PC"""
+    if 'file' not in request.files:
+        return jsonify({"status": "error", "message": "No file package"}), 400
+    
+    ai_text = request.form.get("text", "")
+    if ai_text:
+        storage["ai_reply_text"] = ai_text
+        storage["stats"]["lyric"] = ai_text 
+
+    file = request.files['file']
+    filename = "ai_speech.mp3"
+    file_path = os.path.join(UPLOAD_FOLDER, filename)
+    
+    try:
+        file.save(file_path)
+        return jsonify({
+            "status": "success", 
+            "audio_url": "/get_voice",
+            "text": storage["ai_reply_text"]
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "reason": str(e)}), 500
+
+@app.route('/get_voice', methods=['GET'])
+def get_voice():
+    """Retrieve the AI voice file"""
+    return send_from_directory(UPLOAD_FOLDER, "ai_speech.mp3")
+
+# ==================== v18 Status query interface ====================
+
+@app.route('/get_ai_text', methods=['GET'])
+def get_ai_text():
+    """Get AI reply and system status (v18 enhanced)"""
+    return jsonify({
+        "ai_reply_text": storage["ai_reply_text"],
+        "stats": storage["stats"]
+    }), 200
+
+# ==================== v10 Video & resource management interface ====================
+
+@app.route('/upload_video', methods=['POST'])
+def upload_video():
+    """Upload video file to the terminal (v10 feature)"""
+    if 'video' not in request.files:
+        return jsonify({"status": "error", "message": "No file"}), 400
+    
+    file = request.files['video']
+    fixed_filename = "background.mp4" 
+    file_path = os.path.join(UPLOAD_FOLDER, fixed_filename)
+    
+    try:
+        file.save(file_path)
+        storage["current_video"] = fixed_filename
+        print(f"📥 Video saved and overwritten: {file_path}")
+        return jsonify({
+            "status": "success", 
+            "filename": fixed_filename
+        }), 200
+    except Exception as e:
+        return jsonify({"status": "error", "reason": str(e)}), 500
+
+@app.route('/update_html', methods=['POST'])
+def update_html():
+    """Receive HTML code from PC and save it (v10 feature)"""
+    data = request.json
+    if not data or 'html' not in data:
+        return jsonify({"status": "error", "message": "No content"}), 400
+    
+    try:
+        html_path = os.path.join(UPLOAD_FOLDER, "index.html")
+        with open(html_path, "w", encoding="utf-8") as f:
+            f.write(data['html'])
+        
+        print(f"💎 HTML updated and saved to: {html_path}")
+        return jsonify({"status": "success", "path": "index.html"}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "reason": str(e)}), 500
+
+@app.route('/index.html')
+def serve_index():
+    """Serve the dynamically updated HTML (v10 feature)"""
+    return send_from_directory(UPLOAD_FOLDER, "index.html")
+
+# ==================== v10 Data aggregation interface ====================
+
+@app.route('/get_data', methods=['GET'])
+def get_data():
+    """Get aggregated data (v10 enhanced)"""
+    data = {
+        "a527_ip": get_local_ip(),
+        "pc_cpu": storage["stats"].get("cpu", "--%"),
+        "pc_mem": storage["stats"].get("mem", "--%"),
+        "pc_ip": storage["pc_ip"],
+        "current_video": storage["current_video"],
+        "upload_progress": storage["upload_progress"],
+        "online": (time.time() - storage["last_seen"]) < 10,
+        "ai_reply_text": storage["ai_reply_text"],  # updated by /upload_voice
+        "lyric": storage["stats"].get("lyric", ""), # current lyric / AI reply
+        "progress": storage["stats"].get("progress", 0),
+        "spectrum": storage["stats"].get("spectrum", [0] * 64)
+    }
+    return jsonify(data)
+
+# ==================== v10/v18 Common interfaces ====================
+
+@app.route('/update_stats', methods=['POST'])
+def update_stats():
+    """Update PC status (enhanced, compatible with v10 and v18)"""
+    data = request.json
+    if data:
+        # Merge updates, keep all fields
+        for key, value in data.items():
+            if key in storage["stats"]:
+                storage["stats"][key] = value
+            elif key in storage:
+                storage[key] = value
+            else:
+                # Compatible with old versions that directly pass cpu/mem
+                if key == "cpu":
+                    storage["stats"]["cpu"] = value
+                elif key == "mem":
+                    storage["stats"]["mem"] = value
+        storage["last_seen"] = time.time()
+    return jsonify({"status": "ok"}), 200
+
+@app.route('/heartbeat', methods=['POST'])
+def heartbeat():
+    """PC heartbeat binding"""
+    data = request.json
+    if data and 'pc_ip' in data:
+        storage["pc_ip"] = data.get('pc_ip')
+        storage["last_seen"] = time.time()
+        print(f"✅ Bound PC IP: {storage['pc_ip']}")
+        return jsonify({"status": "bound", "pc_ip": storage["pc_ip"]}), 200
+    return jsonify({"status": "error"}), 400
+
+@app.route('/push', methods=['POST'])
+def forward_to_pc():
+    """Forward messages to the PC side"""
+    if not storage["pc_ip"] or storage["pc_ip"] == "disconnected":
+        return jsonify({"status": "error", "message": "PC IP not bound"}), 400
+    try:
+        data = request.json
+        target_url = f"http://{storage['pc_ip']}:8080/push"
+        session = requests.Session()
+        resp = session.post(target_url, json=data, timeout=1.0)
+        return jsonify({"status": "success", "pc_response": resp.status_code}), 200
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+# ==================== Start the service ====================
+
+if __name__ == '__main__':
+    local_ip = get_local_ip()
+    print("=" * 50)
+    print(f"🚀 A527 All-in-One Service Started (v10 + v18, AI disabled)")
+    print(f"📡 Listening on: http://{local_ip}:8080")
+    print(f"📂 Static HTML: http://{local_ip}:8080/")
+    print(f"🎨 Dynamic HTML: http://{local_ip}:8080/index.html")
+    print(f"🎤 Voice upload: POST /upload_voice")
+    print(f"📹 Video upload: POST /upload_video")
+    print(f"📊 Status query: GET /get_data or /get_ai_text")
+    print("=" * 50)
+    app.run(host='0.0.0.0', port=8080, threaded=True)
