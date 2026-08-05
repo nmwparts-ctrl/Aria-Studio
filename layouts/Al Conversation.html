@@ -1,0 +1,1201 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>ARIA 透明终端 · 优雅玻璃质感</title>
+    <style>
+        /* ==========================================================
+           0. 全局重置 — 背景透明与 3D 变量定义
+           ========================================================== */
+        :root {
+            --panel-width: 100vw;
+            --panel-bg: rgba(10, 10, 18, 0.78);
+            --accent-cyan: #00f5ff;
+            --accent-purple: #b388ff;
+            --accent-pink: #ff6b9d;
+            --accent-gold: #ffd54f;
+            --text-main: #ffffff;
+            --text-muted: rgba(255, 255, 255, 0.5);
+            --font-main-size: clamp(20px, 6.8vh, 28px);
+            --font-sub-size: clamp(10px, 3vh, 13px);
+            --btn-size: clamp(64px, 20vh, 88px);
+            --wave-size: clamp(10px, 1.6vh, 14px);
+            --app-radius: 28px;
+        }
+
+        * {
+            box-sizing: border-box !important;
+            margin: 0;
+            padding: 0;
+            user-select: none;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        html,
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden !important;
+            background: transparent !important;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", sans-serif;
+        }
+
+        /* ==========================================================
+           1. 主容器 — 开启 1200px 视距
+           ========================================================== */
+        .screen-container {
+            width: 100vw;
+            height: 100vh;
+            position: relative;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            overflow: hidden;
+            border-radius: var(--app-radius);
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            -webkit-mask-image: -webkit-radial-gradient(white, black);
+            mask-image: radial-gradient(white, black);
+            perspective: 1200px;
+        }
+
+        /* 边框光晕动画 */
+        .screen-container::before {
+            content: '';
+            position: absolute;
+            inset: -2px;
+            border-radius: calc(var(--app-radius) + 2px);
+            padding: 2px;
+            background: linear-gradient(135deg,
+                    rgba(0, 245, 255, 0.10) 0%,
+                    rgba(179, 136, 255, 0.06) 30%,
+                    rgba(255, 107, 157, 0.06) 60%,
+                    rgba(255, 213, 79, 0.08) 100%);
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            z-index: 20;
+            animation: border-glow-pulse 6s ease-in-out infinite alternate;
+        }
+
+        @keyframes border-glow-pulse {
+            0% { opacity: 0.6; }
+            100% { opacity: 1; }
+        }
+
+        /* 全幅环境光 */
+        .ambient-glow {
+            position: absolute;
+            width: 90vh;
+            height: 90vh;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.06) 0%, rgba(0, 245, 255, 0.02) 40%, rgba(0, 0, 0, 0) 70%);
+            filter: blur(100px);
+            pointer-events: none;
+            z-index: 1;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            transition: background 1.5s ease;
+        }
+
+        /* ==========================================================
+           2. 磨砂玻璃球壳 (3D 强化版)
+           ========================================================== */
+        .siri-sphere-wrapper {
+            position: absolute;
+            width: 75vh;
+            height: 75vh;
+            max-width: 280px;
+            max-height: 280px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            opacity: 1.0;
+            transform-style: preserve-3d;
+            transition: transform 0.1s cubic-bezier(0.25, 1, 0.5, 1), opacity 1.2s ease;
+            will-change: transform, opacity;
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 50%;
+            backdrop-filter: blur(25px) saturate(140%);
+            -webkit-backdrop-filter: blur(25px) saturate(140%);
+            border: 2px solid rgba(255, 255, 255, 0.55);
+            box-shadow:
+                0 35px 70px -10px rgba(0, 0, 0, 0.75),
+                0 10px 20px rgba(0, 0, 0, 0.3),
+                inset 0 15px 25px rgba(255, 255, 255, 0.55),
+                inset 0 -10px 25px rgba(0, 0, 0, 0.15);
+            overflow: hidden;
+        }
+
+        /* 顶部透光玻璃弧，模拟凸透镜感 */
+        .siri-sphere-wrapper::after {
+            content: '';
+            position: absolute;
+            top: 2%;
+            left: 6%;
+            width: 88%;
+            height: 42%;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.55) 0%, rgba(255, 255, 255, 0) 100%);
+            border-radius: 50% 50% 20% 20% / 100% 100% 25% 25%;
+            pointer-events: none;
+            z-index: 12;
+        }
+
+        .siri-sphere-wrapper.fade-out {
+            transform: scale(0.65) !important;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #siriCanvas {
+            width: 100%;
+            height: 100%;
+            z-index: 5;
+        }
+
+        /* ==========================================================
+           3. 物理立体按钮 (3D 悬浮图标版)
+           ========================================================== */
+        .btn-action-left, .btn-action-right {
+            width: var(--btn-size);
+            height: var(--btn-size);
+            border-radius: 50%;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.15) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border: 1.6px solid rgba(255, 255, 255, 0.35);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            box-shadow:
+                0 15px 35px -5px rgba(0, 0, 0, 0.55),
+                0 4px 10px rgba(0, 0, 0, 0.25),
+                inset 0 3px 5px rgba(255, 255, 255, 0.45),
+                inset 0 -5px 12px rgba(0, 0, 0, 0.35),
+                inset 0 0 15px rgba(255, 255, 255, 0.05);
+            transition: transform 0.3s cubic-bezier(0.25, 1, 0.5, 1), background 0.25s ease, border-color 0.3s ease, box-shadow 0.4s ease;
+            flex-shrink: 0;
+            z-index: 6;
+            position: relative;
+            transform-style: preserve-3d;
+            perspective: 300px;
+            overflow: hidden;
+        }
+
+        .btn-action-left { margin-left: 20px; }
+        .btn-action-right { margin-right: 20px; }
+
+        /* 按钮表面的玻璃月牙高光 */
+        .btn-action-left::before, .btn-action-right::before {
+            content: '';
+            position: absolute;
+            top: 2%;
+            left: 5%;
+            width: 90%;
+            height: 45%;
+            background: linear-gradient(to bottom, rgba(255, 255, 255, 0.3) 0%, rgba(255, 255, 255, 0) 100%);
+            border-radius: 50% 50% 15% 15% / 100% 100% 20% 20%;
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        .btn-action-left:hover, .btn-action-right:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.22) 0%, rgba(255, 255, 255, 0.05) 100%);
+            border-color: rgba(0, 245, 255, 0.45);
+            box-shadow:
+                0 22px 45px rgba(0, 0, 0, 0.65),
+                0 6px 14px rgba(0, 0, 0, 0.3),
+                inset 0 3px 5px rgba(255, 255, 255, 0.55),
+                inset 0 -5px 12px rgba(0, 0, 0, 0.35),
+                inset 0 0 15px rgba(255, 255, 255, 0.1);
+        }
+
+        /* 按钮背后的悬浮极光晕 */
+        .btn-action-left::after, .btn-action-right::after {
+            content: '';
+            position: absolute;
+            inset: -3px;
+            border-radius: 50%;
+            padding: 2px;
+            background: linear-gradient(135deg, rgba(0, 245, 255, 0.25), transparent 60%, rgba(179, 136, 255, 0.15));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            z-index: 1;
+        }
+
+        .btn-action-left:hover::after, .btn-action-right:hover::after { opacity: 1; }
+
+        @keyframes mic-pulse {
+            0% { transform: scale(1.0); box-shadow: 0 0 8px rgba(0, 245, 255, 0.10), inset 0 3px 5px rgba(255,255,255,0.45); }
+            100% { transform: scale(1.08); box-shadow: 0 0 35px rgba(0, 245, 255, 0.45), inset 0 3px 5px rgba(255,255,255,0.55); border-color: rgba(0, 245, 255, 0.6); background: rgba(0, 245, 255, 0.12); }
+        }
+
+        .btn-action-right.recording { animation: mic-pulse 0.8s infinite alternate ease-in-out; }
+
+        /* 3D 浮雕图标效果：利用 Z 位移脱离底板 */
+        .btn-icon-chat, .btn-icon-mic {
+            width: 44%; height: 44%;
+            fill: url(#icon3DGrad) !important;
+            filter: drop-shadow(0 2px 2px rgba(0, 0, 0, 0.6)) drop-shadow(0 0 1px rgba(255, 255, 255, 0.25));
+            opacity: 0.85;
+            transition: transform 0.4s cubic-bezier(0.25, 1, 0.5, 1), filter 0.4s ease, opacity 0.3s ease;
+            transform: translateZ(12px);
+            z-index: 10;
+        }
+
+        .btn-action-right.recording .btn-icon-mic { fill: var(--accent-cyan) !important; opacity: 1; filter: drop-shadow(0 3px 4px rgba(0,0,0,0.6)) drop-shadow(0 0 10px rgba(0, 245, 255, 0.6)); }
+
+        .btn-action-left:hover .btn-icon-chat, 
+        .btn-action-right:hover .btn-icon-mic { 
+            opacity: 1; 
+            transform: translateZ(24px) scale(1.1);
+            filter: drop-shadow(0 6px 8px rgba(0, 0, 0, 0.75)) drop-shadow(0 0 12px rgba(0, 245, 255, 0.5));
+        }
+
+        /* ==========================================================
+           4. 对话面板
+           ========================================================== */
+        .voice-panel-container {
+            width: 100vw;
+            height: 100vh;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 5;
+            transform: scale(1.02) translateY(12px);
+            filter: blur(14px);
+            opacity: 0;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            transition:
+                transform 2s cubic-bezier(0.16, 1, 0.3, 1),
+                opacity 2s cubic-bezier(0.16, 1, 0.3, 1),
+                filter 2s cubic-bezier(0.16, 1, 0.3, 1);
+            border-radius: var(--app-radius);
+            overflow: hidden;
+        }
+        .voice-panel-container.active {
+            transform: scale(1) translateY(0);
+            filter: blur(0);
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .frosted-glass-card {
+            width: 100%;
+            height: 100%;
+            background: var(--panel-bg);
+            padding: 0 5vw;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: relative;
+            overflow: hidden;
+            backdrop-filter: blur(40px) saturate(140%);
+            -webkit-backdrop-filter: blur(40px) saturate(140%);
+            box-shadow: inset 0 1px 2px rgba(255, 255, 255, 0.06);
+            border-radius: var(--app-radius);
+            perspective: 500px;
+        }
+
+        /* 网格背景 */
+        .frosted-glass-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            border-radius: var(--app-radius);
+            background-image:
+                linear-gradient(rgba(0, 245, 255, 0.01) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(0, 245, 255, 0.01) 1px, transparent 1px);
+            background-size: 48px 48px;
+            background-position: -1px -1px;
+            pointer-events: none;
+            z-index: 0;
+            opacity: 0.3;
+            mask-image: radial-gradient(ellipse at 50% 50%, black 30%, transparent 70%);
+            -webkit-mask-image: radial-gradient(ellipse at 50% 50%, black 30%, transparent 70%);
+        }
+
+        /* 边框流动 */
+        .frosted-glass-card::after {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            padding: 1.8px;
+            border-radius: var(--app-radius);
+            background: linear-gradient(90deg,
+                    rgba(255, 255, 255, 0.02) 0%,
+                    rgba(0, 245, 255, 0.20) 25%,
+                    rgba(179, 136, 255, 0.25) 50%,
+                    rgba(0, 245, 255, 0.20) 75%,
+                    rgba(255, 255, 255, 0.02) 100%);
+            background-size: 300% 100%;
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            animation: flowing-border 10s linear infinite;
+            will-change: background-position;
+            z-index: 2;
+        }
+        @keyframes flowing-border {
+            0% { background-position: 0% 50%; }
+            100% { background-position: 300% 50%; }
+        }
+
+        /* ==========================================================
+           5. 对话内容区
+           ========================================================== */
+        .terminal-content-center {
+            flex: 1;
+            min-height: 0;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 0 3vw;
+            text-align: center;
+            z-index: 5;
+            position: relative;
+        }
+
+        .dialogue-wrapper {
+            width: 100%;
+            height: 52vh;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            overflow: hidden;
+            position: relative;
+            margin-bottom: 1vh;
+            mask-image: linear-gradient(to bottom, transparent 0%, #fff 20%, #fff 80%, transparent 100%);
+            -webkit-mask-image: linear-gradient(to bottom, transparent 0%, #fff 20%, #fff 80%, transparent 100%);
+        }
+
+        .dialogue-scroll-container {
+            display: flex;
+            flex-direction: column;
+            gap: 3vh;
+            transition: transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+            will-change: transform;
+            width: 100%;
+        }
+
+        .dialogue-line {
+            width: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 16px;
+            font-size: var(--font-main-size);
+            height: 22vh;
+            opacity: 0;
+            filter: blur(8px);
+            transform: translateY(18px) scale(0.95);
+            transition:
+                opacity 0.9s cubic-bezier(0.34, 1.56, 0.64, 1),
+                filter 0.9s ease,
+                transform 0.9s cubic-bezier(0.34, 1.56, 0.64, 1);
+            will-change: opacity, filter, transform;
+            flex-shrink: 0;
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 16px;
+            padding: 0.8vh 1.8vw;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            position: relative;
+        }
+
+        .dialogue-line::before {
+            content: '';
+            position: absolute;
+            inset: -1px;
+            border-radius: 17px;
+            padding: 1px;
+            background: linear-gradient(135deg, rgba(0, 245, 255, 0.05), transparent 50%, rgba(179, 136, 255, 0.05));
+            -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+            -webkit-mask-composite: xor;
+            mask-composite: exclude;
+            pointer-events: none;
+            opacity: 0;
+            transition: opacity 0.6s ease;
+        }
+        .dialogue-line.active::before { opacity: 1; }
+
+        .dialogue-line.active {
+            opacity: 1;
+            filter: blur(0);
+            transform: translateY(0) scale(1);
+            background: rgba(255, 255, 255, 0.06);
+            border-color: rgba(0, 245, 255, 0.12);
+            box-shadow: 0 0 40px rgba(0, 245, 255, 0.03), inset 0 0 40px rgba(0, 245, 255, 0.02);
+        }
+
+        .dialogue-line.previous {
+            opacity: 0.25;
+            filter: blur(1.5px);
+            transform: translateY(-6px) scale(0.94);
+            background: rgba(255, 255, 255, 0.01);
+            border-color: rgba(255, 255, 255, 0.02);
+        }
+
+        .speaker-tag {
+            font-weight: 600;
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            flex-shrink: 0;
+            font-family: 'SF Mono', 'Menlo', monospace;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            font-size: clamp(11px, 2.2vh, 16px);
+            padding: 0.3vh 1.2vw;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: all 0.5s ease;
+        }
+
+        .speaker-creator {
+            color: rgba(255, 255, 255, 0.50);
+            border-color: rgba(255, 255, 255, 0.06);
+        }
+        .speaker-creator.active-tag {
+            color: rgba(255, 213, 79, 0.9);
+            border-color: rgba(255, 213, 79, 0.20);
+            background: rgba(255, 213, 79, 0.06);
+            box-shadow: 0 0 20px rgba(255, 213, 79, 0.04);
+        }
+
+        .speaker-aria {
+            color: var(--accent-cyan);
+            text-shadow: 0 0 20px rgba(0, 245, 255, 0.20);
+            border-color: rgba(0, 245, 255, 0.15);
+            background: rgba(0, 245, 255, 0.04);
+        }
+        .speaker-aria.active-tag {
+            color: var(--accent-cyan);
+            border-color: rgba(0, 245, 255, 0.30);
+            background: rgba(0, 245, 255, 0.08);
+            box-shadow: 0 0 30px rgba(0, 245, 255, 0.06);
+        }
+
+        .dialogue-text {
+            color: var(--text-main);
+            flex: 0 1 auto;
+            max-width: calc(var(--panel-width) * 0.52);
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            font-weight: 400;
+            letter-spacing: 0.3px;
+            text-shadow: 0 0 20px rgba(255, 255, 255, 0.03);
+        }
+        .dialogue-line.active .dialogue-text {
+            text-shadow: 0 0 30px rgba(255, 255, 255, 0.08);
+        }
+
+        .dialogue-text::after {
+            content: '▊';
+            display: inline-block;
+            margin-left: 6px;
+            color: var(--accent-cyan);
+            font-size: 0.85em;
+            vertical-align: middle;
+            animation: cursor-blink 0.7s infinite;
+            opacity: 0.7;
+            text-shadow: 0 0 12px rgba(0, 245, 255, 0.3);
+        }
+        .dialogue-line:not(.typing) .dialogue-text::after { display: none; }
+
+        @keyframes cursor-blink {
+            0%, 100% { opacity: 0; }
+            50% { opacity: 1; }
+        }
+
+        /* ==========================================================
+           6. 底部状态
+           ========================================================== */
+        .voice-status-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 3vh;
+            padding-bottom: 2vh;
+            width: 100%;
+            position: relative;
+        }
+
+        .visualizer-wave-group {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 14px;
+            height: 2vh;
+            min-height: 0;
+        }
+
+        .wave-bar {
+            width: var(--wave-size);
+            height: var(--wave-size);
+            background: rgba(255, 255, 255, 0.20);
+            border-radius: 50%;
+            transition: transform 0.15s ease, background 0.3s ease, box-shadow 0.3s ease;
+            will-change: transform, background;
+        }
+
+        .wave-bar.active-glow {
+            background: linear-gradient(135deg, #b3faff, #ffffff) !important;
+            box-shadow: 0 0 16px rgba(0, 245, 255, 0.6) !important;
+        }
+
+        .status-caption {
+            font-size: var(--font-sub-size);
+            font-family: 'SF Mono', 'Menlo', monospace;
+            color: var(--text-muted);
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            text-align: center;
+            max-width: 80%;
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+            transition: color 0.5s ease;
+            padding: 0.4vh 1.2vw;
+            border-radius: 12px;
+            background: rgba(255, 255, 255, 0.02);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+        }
+        .status-caption.active-caption {
+            color: var(--accent-cyan);
+            border-color: rgba(0, 245, 255, 0.08);
+        }
+
+        /* ==========================================================
+           7. 响应式
+           ========================================================== */
+        @media (max-width: 640px) {
+            :root { --app-radius: 16px; }
+            .dialogue-line { gap: 10px; padding: 0.6vh 2vw; height: 20vh; }
+            .speaker-tag { font-size: clamp(9px, 1.8vh, 12px); letter-spacing: 1px; padding: 0.2vh 1.5vw; }
+            .dialogue-text { max-width: 60vw; }
+            .btn-action-left, .btn-action-right { width: clamp(48px, 14vh, 64px); height: clamp(48px, 14vh, 64px); }
+            .btn-action-left { margin-left: 8px; }
+            .btn-action-right { margin-right: 8px; }
+            .voice-status-wrapper {
+                gap: 2vh;
+                padding-bottom: 1vh;
+            }
+        }
+    </style>
+<base target="_blank">
+</head>
+<body>
+
+    <!-- 3D 质感渐变色库 (不占位置) -->
+    <svg style="position: absolute; width: 0; height: 0; overflow: hidden;" version="1.1" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+            <linearGradient id="icon3DGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stop-color="#FFFFFF" />
+                <stop offset="40%" stop-color="#E2E8F0" />
+                <stop offset="100%" stop-color="#94A3B8" />
+            </linearGradient>
+        </defs>
+    </svg>
+
+    <div class="screen-container">
+        <!-- 全幅环境光 -->
+        <div class="ambient-glow" id="backglow"></div>
+
+        <!-- 白色磨砂球壳 -->
+        <div class="siri-sphere-wrapper" id="siriSphere">
+            <canvas id="siriCanvas"></canvas>
+        </div>
+
+        <!-- 对话面板 -->
+        <div class="voice-panel-container" id="voicePanel">
+            <div class="frosted-glass-card">
+                <!-- 左侧历史按钮 -->
+                <div class="btn-action-left" id="btnHistory">
+                    <svg class="btn-icon-chat" viewBox="0 0 24 24">
+                        <path d="M20 2H4c-1.1 0-1.99.9-1.99 2L2 22l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2zM6 9h12v2H6V9zm8 5H6v-2h8v2zm4-6H6V6h12v2z"/>
+                    </svg>
+                </div>
+
+                <div class="terminal-content-center">
+                    <!-- 对话推移滑轨 -->
+                    <div class="dialogue-wrapper">
+                        <div class="dialogue-scroll-container" id="dialogueScroll">
+                            <!-- 动态注入 -->
+                        </div>
+                    </div>
+
+                    <!-- 底部状态 (仅四点 + 文字) -->
+                    <div class="voice-status-wrapper">
+                        <div class="visualizer-wave-group" id="waveGroup">
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                            <div class="wave-bar"></div>
+                        </div>
+                        <div class="status-caption" id="statusLabel">⏣ ARIA System Ready</div>
+                    </div>
+                </div>
+
+                <!-- 右侧麦克风按钮 -->
+                <div class="btn-action-right" id="btnMic">
+                    <svg class="btn-icon-mic" viewBox="0 0 24 24">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3zm5.3-3c0 3-2.54 5.1-5.3 5.1S6.7 14 6.7 11H5c0 3.41 2.72 6.23 6 6.72V21h2v-3.28c3.28-.48 6-3.3 6-6.72h-1.7z"/>
+                    </svg>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+<script>
+        /* ==========================================================
+           1. 3D 流体球渲染 — 3D 深度投影与拟真光影优化
+           ========================================================== */
+        const canvas = document.getElementById('siriCanvas');
+        const ctx = canvas.getContext('2d');
+        let animationFrameId;
+
+        const size = Math.floor(window.innerHeight * 0.75);
+        canvas.style.width = size + 'px';
+        canvas.style.height = size + 'px';
+
+        const pixelRatio = window.devicePixelRatio || 2;
+        canvas.width = size * pixelRatio;
+        canvas.height = size * pixelRatio;
+        ctx.scale(pixelRatio, pixelRatio);
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
+
+        let time = 0;
+        let isTransitioning = false;
+
+        const STATES = { IDLE: 'IDLE', LISTENING: 'LISTENING', THINKING: 'THINKING', SPEAKING: 'SPEAKING' };
+        let systemState = STATES.IDLE;
+
+        let audioContext, analyser, dataArray, micStream;
+        let isMicActive = false;
+        let currentVolume = 0;
+
+        let mouseX = 0, mouseY = 0;
+        let targetMouseX = 0, targetMouseY = 0;
+        let isMouseActive = false;
+
+        // 3D 物理倾斜角控制变量
+        let tiltX = 0, tiltY = 0;
+        let targetTiltX = 0, targetTiltY = 0;
+
+        window.addEventListener('mousemove', (e) => {
+            targetMouseX = e.clientX - window.innerWidth / 2;
+            targetMouseY = e.clientY - window.innerHeight / 2;
+            isMouseActive = true;
+
+            // 根据屏幕上的鼠标坐标，计算 3D 旋转幅度 (最大倾斜 15 度)
+            targetTiltX = -(targetMouseY / (window.innerHeight / 2)) * 15;
+            targetTiltY = (targetMouseX / (window.innerWidth / 2)) * 15;
+        });
+        window.addEventListener('mouseleave', () => { 
+            isMouseActive = false; 
+            targetTiltX = 0;
+            targetTiltY = 0;
+        });
+
+        async function startMicrophone() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+                micStream = stream;
+                audioContext = new(window.AudioContext || window.webkitAudioContext)();
+                analyser = audioContext.createAnalyser();
+                analyser.fftSize = 64;
+                const source = audioContext.createMediaStreamSource(stream);
+                source.connect(analyser);
+                dataArray = new Uint8Array(analyser.frequencyBinCount);
+                isMicActive = true;
+                return true;
+            } catch (err) {
+                console.warn("[System] 麦克风不可用，启用仿真。", err);
+                isMicActive = false;
+                return false;
+            }
+        }
+
+        function stopMicrophone() {
+            if (micStream) { micStream.getTracks().forEach(track => track.stop()); }
+            isMicActive = false;
+            currentVolume = 0;
+        }
+
+        const particleColors = [
+            { r: 0, g: 245, b: 255 },
+            { r: 210, g: 0, b: 255 },
+            { r: 255, g: 70, b: 120 },
+            { r: 255, g: 190, b: 0 }
+        ];
+
+        const particles = [];
+        const baseRadiusVal = size * 0.28;
+
+        // 渲染 3D 深度环绕粒子
+        for (let i = 0; i < 18; i++) {
+            particles.push({
+                angle: Math.random() * Math.PI * 2,
+                orbitRadius: baseRadiusVal * 1.04 + Math.random() * (baseRadiusVal * 0.42),
+                pitch: -Math.PI / 6 + Math.random() * (Math.PI / 3),
+                speed: 0.003 + Math.random() * 0.005,
+                size: 2.2 + Math.random() * 2.8,
+                opacity: 0.45 + Math.random() * 0.35,
+                color: particleColors[Math.floor(Math.random() * particleColors.length)],
+                x: 0, y: 0, z: 0
+            });
+        }
+
+        function traceMorphingPath(ctx, radius, t, breatheScale, stateIntensity, localSwellAngle, swellAmount) {
+            ctx.beginPath();
+            const segments = 80;
+            const currentR = radius * breatheScale;
+
+            for (let i = 0; i <= segments; i++) {
+                const angle = (i / segments) * Math.PI * 2;
+                const wave1 = Math.sin(angle * 2.0 - t * 1.5) * (radius * 0.09);
+                const wave2 = Math.cos(angle * 4.0 + t * 2.0) * (radius * 0.04);
+                const wave3 = Math.sin(angle * 6.0 - t * 1.2) * (radius * 0.02);
+
+                let r = currentR + (wave1 + wave2 + wave3) * stateIntensity;
+
+                if (swellAmount > 0) {
+                    let angleDiff = Math.abs(angle - localSwellAngle);
+                    if (angleDiff > Math.PI) angleDiff = Math.PI * 2 - angleDiff;
+                    if (angleDiff < Math.PI / 3) {
+                        let factor = Math.cos((angleDiff / (Math.PI / 3)) * (Math.PI / 2));
+                        r += swellAmount * factor;
+                    }
+                }
+
+                const x = Math.cos(angle) * r;
+                const y = Math.sin(angle) * r;
+                if (i === 0) { ctx.moveTo(x, y); } else { ctx.lineTo(x, y); }
+            }
+            ctx.closePath();
+        }
+
+        let isTyping = false;
+
+        function drawSiriSphere() {
+            const cx = size / 2;
+            const cy = size / 2;
+            const baseRadius = size * 0.28;
+
+            ctx.clearRect(0, 0, size, size);
+            time += 0.012;
+
+            mouseX += (targetMouseX - mouseX) * 0.08;
+            mouseY += (targetMouseY - mouseY) * 0.08;
+
+            tiltX += (targetTiltX - tiltX) * 0.1;
+            tiltY += (targetTiltY - tiltY) * 0.1;
+
+            const siriSphere = document.getElementById('siriSphere');
+            if (siriSphere && !siriSphere.classList.contains('fade-out')) {
+                siriSphere.style.transform = `rotateX(${tiltX}deg) rotateY(${tiltY}deg) scale(1.0)`;
+            }
+
+            let dragX = 0, dragY = 0;
+            let localSwellAngle = 0;
+            let swellAmount = 0;
+            const distance = Math.sqrt(mouseX * mouseX + mouseY * mouseY);
+
+            if (isMouseActive && distance < 350) {
+                localSwellAngle = Math.atan2(mouseY, mouseX);
+                swellAmount = (1.0 - distance / 350) * 14;
+                dragX = Math.cos(localSwellAngle) * swellAmount * 0.6;
+                dragY = Math.sin(localSwellAngle) * swellAmount * 0.6;
+            }
+
+            if (isMicActive && analyser) {
+                analyser.getByteFrequencyData(dataArray);
+                let sum = 0;
+                for (let i = 0; i < dataArray.length; i++) { sum += dataArray[i]; }
+                const rawVol = sum / dataArray.length / 255;
+                currentVolume = currentVolume * 0.65 + rawVol * 0.35;
+            } else if (systemState === STATES.LISTENING) {
+                currentVolume = 0.15 + Math.sin(time * 6) * 0.12 + Math.cos(time * 11) * 0.05;
+            } else {
+                currentVolume = 0;
+            }
+
+            let morphFrequency = 1.0;
+            let colorRotSpeed = 16;
+            let breatheCycleSpeed = 1.8;
+
+            if (systemState === STATES.LISTENING) {
+                morphFrequency = 1.3 + currentVolume * 3.2;
+                colorRotSpeed = 25 + currentVolume * 60;
+                breatheCycleSpeed = 3.2;
+            } else if (systemState === STATES.THINKING) {
+                morphFrequency = 0.6 + Math.sin(time * 9) * 0.2;
+                colorRotSpeed = 90;
+            } else if (systemState === STATES.SPEAKING) {
+                morphFrequency = isTyping ? 1.5 + Math.sin(time * 8) * 0.4 : 0.8;
+                breatheCycleSpeed = 2.4;
+            }
+
+            const pulseWave = Math.pow(Math.sin(time * breatheCycleSpeed), 4) * 0.04 - Math.pow(Math.cos(time * breatheCycleSpeed), 2) * 0.012;
+            const breatheScale = 1.0 + pulseWave + (systemState === STATES.LISTENING ? currentVolume * 0.05 : 0);
+            const currentRadius = baseRadius * breatheScale;
+
+            ctx.save();
+            ctx.translate(cx + dragX, cy + dragY);
+
+            // 更新三维空间粒子坐标
+            particles.forEach(p => {
+                p.angle += p.speed * (systemState === STATES.THINKING ? 2.5 : 1.0);
+                let orbit = p.orbitRadius;
+                if (systemState === STATES.LISTENING) orbit += currentVolume * (baseRadius * 0.35);
+
+                const lx = Math.cos(p.angle) * orbit;
+                const ly = Math.sin(p.angle) * orbit * Math.cos(p.pitch);
+                const lz = Math.sin(p.angle) * orbit * Math.sin(p.pitch);
+
+                const ry = tiltY * Math.PI / 180;
+                let x1 = lx * Math.cos(ry) - lz * Math.sin(ry);
+                let z1 = lx * Math.sin(ry) + lz * Math.cos(ry);
+
+                const rx = tiltX * Math.PI / 180;
+                let y2 = ly * Math.cos(rx) - z1 * Math.sin(rx);
+                let z2 = ly * Math.sin(rx) + z1 * Math.cos(rx);
+
+                p.x = x1;
+                p.y = y2;
+                p.z = z2;
+            });
+
+            const backParticles = particles.filter(p => p.z < 0);
+            const frontParticles = particles.filter(p => p.z >= 0);
+
+            // 绘制球壳后方的粒子
+            backParticles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = p.opacity * 0.7;
+                const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.8);
+                g.addColorStop(0, `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, 0.9)`);
+                g.addColorStop(1, `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, 0)`);
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * 2.8, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            // 绘制玻璃球核心与内部流体
+            ctx.save();
+            traceMorphingPath(ctx, baseRadius, time, breatheScale, morphFrequency, localSwellAngle, swellAmount);
+            ctx.clip();
+
+            let bodyGrad = ctx.createRadialGradient(
+                -baseRadius * 0.35, -baseRadius * 0.35, baseRadius * 0.1,
+                -baseRadius * 0.1, -baseRadius * 0.1, baseRadius * 1.3
+            );
+            bodyGrad.addColorStop(0, 'rgba(255, 255, 255, 1.0)');
+            bodyGrad.addColorStop(0.5, 'rgba(240, 243, 248, 0.95)');
+            bodyGrad.addColorStop(1, 'rgba(175, 190, 220, 0.9)');
+            ctx.fillStyle = bodyGrad;
+            ctx.fillRect(-baseRadius * 2, -baseRadius * 2, baseRadius * 4, baseRadius * 4);
+
+            ctx.globalCompositeOperation = 'multiply';
+            const rotationTime = time * colorRotSpeed;
+
+            const blobs = [
+                { x: Math.sin(time * 0.9) * (currentRadius * 0.3), y: Math.cos(time * 1.1) * (currentRadius * 0.25), r: currentRadius * 1.1, c1: `hsla(${rotationTime % 360}, 100%, 55%, 0.85)`, c2: 'rgba(255,255,255,0)' },
+                { x: Math.cos(time * 0.75) * (currentRadius * 0.35), y: Math.sin(time * 1.0) * (currentRadius * 0.3), r: currentRadius * 1.15, c1: `hsla(${(rotationTime + 120) % 360}, 100%, 50%, 0.82)`, c2: 'rgba(255,255,255,0)' },
+                { x: Math.sin(time * 1.3) * (currentRadius * 0.25), y: -Math.cos(time * 0.85) * (currentRadius * 0.35), r: currentRadius * 1.1, c1: `hsla(${(rotationTime + 240) % 360}, 100%, 60%, 0.78)`, c2: 'rgba(255,255,255,0)' }
+            ];
+
+            blobs.forEach(b => {
+                let grad = ctx.createRadialGradient(b.x, b.y, 0, b.x, b.y, b.r);
+                grad.addColorStop(0, b.c1);
+                grad.addColorStop(1, b.c2);
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(b.x, b.y, b.r, 0, Math.PI * 2);
+                ctx.fill();
+            });
+
+            // 菲涅尔 specular 高光
+            ctx.globalCompositeOperation = 'source-over';
+            const glassOverlay = ctx.createRadialGradient(
+                -currentRadius * 0.35, -currentRadius * 0.35, 0,
+                -currentRadius * 0.1, -currentRadius * 0.1, currentRadius
+            );
+            glassOverlay.addColorStop(0, 'rgba(255, 255, 255, 0.7)');
+            glassOverlay.addColorStop(0.2, 'rgba(255, 255, 255, 0.2)');
+            glassOverlay.addColorStop(0.8, 'rgba(255, 255, 255, 0.05)');
+            glassOverlay.addColorStop(0.98, 'rgba(255, 255, 255, 0.65)');
+            glassOverlay.addColorStop(1, 'rgba(255, 255, 255, 0.9)');
+            ctx.fillStyle = glassOverlay;
+            ctx.fillRect(-currentRadius, -currentRadius, currentRadius * 2, currentRadius * 2);
+
+            ctx.restore();
+
+            // 绘制玻璃壳体的明亮描边
+            ctx.save();
+            ctx.globalCompositeOperation = 'source-over';
+            traceMorphingPath(ctx, baseRadius, time, breatheScale, morphFrequency, localSwellAngle, swellAmount);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+            ctx.lineWidth = 1.8;
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.2)';
+            ctx.lineWidth = 4;
+            ctx.stroke();
+            ctx.restore();
+
+            // 绘制球壳前方的粒子
+            frontParticles.forEach(p => {
+                ctx.save();
+                const scale = 1.0 + p.z / baseRadiusVal * 0.15;
+                ctx.globalAlpha = p.opacity;
+                const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.size * 2.8 * scale);
+                g.addColorStop(0, `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, 1.0)`);
+                g.addColorStop(1, `rgba(${p.color.r}, ${p.color.g}, ${p.color.b}, 0)`);
+                ctx.fillStyle = g;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.size * 2.8 * scale, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.restore();
+            });
+
+            ctx.restore();
+
+            const backglow = document.getElementById('backglow');
+            const h = rotationTime % 360;
+            backglow.style.background =
+                `radial-gradient(circle, hsla(${h}, 100%, 60%, ${systemState === STATES.LISTENING ? 0.22 + currentVolume * 0.15 : 0.15}) 0%, hsla(${(h+120)%360}, 100%, 50%, 0.04) 50%, rgba(0,0,0,0) 70%)`;
+
+            const bars = document.querySelectorAll('.wave-bar');
+            bars.forEach((bar, idx) => {
+                let scaleVal = 1.0;
+                let translateYVal = 0;
+                if (systemState === STATES.LISTENING) {
+                    translateYVal = Math.sin(time * 12 + idx * 1.2) * (5 + currentVolume * 22);
+                    scaleVal = 1.0 + currentVolume * 0.4;
+                } else if (systemState === STATES.THINKING) {
+                    translateYVal = Math.sin(time * 8 + idx * 1.5) * 6;
+                } else if (systemState === STATES.SPEAKING && isTyping) {
+                    translateYVal = Math.sin(time * 13 + idx * 1.2) * 8;
+                    scaleVal = 1.15;
+                } else {
+                    translateYVal = Math.sin(time * 2.5 + idx * 0.8) * 2.5;
+                }
+                bar.style.transform = `translateY(${translateYVal}px) scale(${scaleVal})`;
+            });
+
+            animationFrameId = requestAnimationFrame(drawSiriSphere);
+        }
+
+        drawSiriSphere();
+
+        /* ==========================================================
+           2. 对话剧本 & 转场控制
+           ========================================================== */
+        const siriSphere = document.getElementById('siriSphere');
+        const voicePanel = document.getElementById('voicePanel');
+        const dialogueScroll = document.getElementById('dialogueScroll');
+        const statusLabel = document.getElementById('statusLabel');
+        const btnMic = document.getElementById('btnMic');
+
+        const chatScript = [
+            { sender: "Creator", text: "I want to create something unique for my desk setup." },
+            { sender: "ARIA", text: "That sounds interesting." },
+            { sender: "ARIA", text: "Before we build anything, let's think about the experience." },
+            { sender: "ARIA", text: "What kind of feeling do you want it to have?" },
+            { sender: "Creator", text: "Something futuristic but simple." },
+            { sender: "ARIA", text: "I like that direction." },
+            { sender: "ARIA", text: "Maybe combine clean Apple-style design with a little sci-fi atmosphere." },
+            { sender: "ARIA", text: "What if your desk became a personal AI workspace?" },
+            { sender: "Creator", text: "That sounds cool." },
+            { sender: "Creator", text: "How would that work?" }
+        ];
+
+        // 转场：球淡出，面板淡入
+        setTimeout(() => {
+            isTransitioning = true;
+            siriSphere.classList.add('fade-out');
+        }, 3000);
+
+        setTimeout(() => {
+            voicePanel.classList.add('active');
+            playDialogueTimeline();
+        }, 3700);
+
+        let scriptIdx = 0;
+        let activeTypingInterval = null;
+
+        function playDialogueTimeline() {
+            if (scriptIdx >= chatScript.length) {
+                setTimeout(() => {
+                    dialogueScroll.innerHTML = "";
+                    dialogueScroll.style.transform = "translateY(0)";
+                    scriptIdx = 0;
+                    playDialogueTimeline();
+                }, 2200);
+                return;
+            }
+
+            const current = chatScript[scriptIdx];
+
+            const lastLine = dialogueScroll.lastElementChild;
+            if (lastLine) {
+                lastLine.classList.remove('active');
+                lastLine.classList.add('previous');
+            }
+
+            const wrapperHeight = window.innerHeight * 0.52;
+            const lineTrackHeight = window.innerHeight * 0.22;
+            const gapHeight = window.innerHeight * 0.03;
+            const stepHeight = lineTrackHeight + gapHeight;
+
+            const targetCenterOffset = (wrapperHeight / 2) - (lineTrackHeight / 2);
+            const translateYVal = targetCenterOffset - (scriptIdx * stepHeight);
+
+            dialogueScroll.style.transform = `translateY(${translateYVal}px)`;
+
+            const lineDiv = document.createElement('div');
+            lineDiv.className = 'dialogue-line';
+
+            const isAria = current.sender === "ARIA";
+            const speakerClass = isAria ? 'speaker-aria' : 'speaker-creator';
+            lineDiv.innerHTML = `
+                <span class="speaker-tag ${speakerClass}">${isAria ? '● ARIA' : '◆ CREATOR'}</span>
+                <span class="dialogue-text"></span>
+            `;
+            dialogueScroll.appendChild(lineDiv);
+
+            requestAnimationFrame(() => {
+                lineDiv.classList.add('active');
+                const tag = lineDiv.querySelector('.speaker-tag');
+                if (tag) tag.classList.add('active-tag');
+            });
+
+            const textSpan = lineDiv.querySelector('.dialogue-text');
+            const bars = document.querySelectorAll('.wave-bar');
+            let charIdx = 0;
+            isTyping = true;
+            lineDiv.classList.add('typing');
+
+            if (isAria) {
+                systemState = STATES.SPEAKING;
+                statusLabel.innerText = "⏣ ARIA Speaking";
+                statusLabel.classList.add('active-caption');
+                btnMic.classList.remove('recording');
+                bars.forEach(bar => bar.classList.add('active-glow'));
+            } else {
+                systemState = STATES.IDLE;
+                statusLabel.innerText = "⏣ Creator Speaking";
+                statusLabel.classList.remove('active-caption');
+                btnMic.classList.add('recording');
+                bars.forEach(bar => bar.classList.remove('active-glow'));
+            }
+
+            const typingSpeed = 50;
+
+            activeTypingInterval = setInterval(() => {
+                if (charIdx < current.text.length) {
+                    textSpan.innerText = current.text.substring(0, charIdx + 1);
+                    charIdx++;
+                } else {
+                    clearInterval(activeTypingInterval);
+                    isTyping = false;
+                    lineDiv.classList.remove('typing');
+                    systemState = STATES.IDLE;
+                    statusLabel.innerText = "⏣ ARIA System Idle";
+                    statusLabel.classList.remove('active-caption');
+                    btnMic.classList.remove('recording');
+                    bars.forEach(bar => bar.classList.remove('active-glow'));
+
+                    scriptIdx++;
+                    const nextDelay = isAria ? 800 : 500;
+                    setTimeout(playDialogueTimeline, nextDelay);
+                }
+            }, typingSpeed);
+        }
+
+        // ==========================================================
+        // 3. 麦克风交互
+        // ==========================================================
+        let micActiveToggle = false;
+        btnMic.addEventListener('click', async () => {
+            if (isTyping) return;
+
+            if (!micActiveToggle) {
+                micActiveToggle = true;
+                btnMic.classList.add('recording');
+                statusLabel.innerText = "⏣ ARIA Listening...";
+                statusLabel.classList.add('active-caption');
+                await startMicrophone();
+                systemState = STATES.LISTENING;
+
+                setTimeout(() => {
+                    if (micActiveToggle) {
+                        stopMicrophone();
+                        btnMic.classList.remove('recording');
+                        triggerThinking();
+                    }
+                }, 4000);
+            } else {
+                micActiveToggle = false;
+                stopMicrophone();
+                btnMic.classList.remove('recording');
+                triggerThinking();
+            }
+        });
+
+        function triggerThinking() {
+            systemState = STATES.THINKING;
+            statusLabel.innerText = "⏣ ARIA Thinking...";
+            statusLabel.classList.add('active-caption');
+
+            setTimeout(() => {
+                micActiveToggle = false;
+                systemState = STATES.IDLE;
+                statusLabel.innerText = "⏣ ARIA System Idle";
+                statusLabel.classList.remove('active-caption');
+            }, 2000);
+        }
+
+        // 磁吸悬浮 3D 按钮动画
+        const magneticButtons = document.querySelectorAll('.btn-action-left, .btn-action-right');
+        magneticButtons.forEach(btn => {
+            btn.addEventListener('mousemove', (e) => {
+                const rect = btn.getBoundingClientRect();
+                const x = e.clientX - rect.left - rect.width / 2;
+                const y = e.clientY - rect.top - rect.height / 2;
+
+                btn.style.transform = `translate(${x * 0.28}px, ${y * 0.28}px) rotateX(${-(y * 0.35)}deg) rotateY(${x * 0.35}deg) scale(1.08)`;
+            });
+            btn.addEventListener('mouseleave', () => {
+                btn.style.transform = '';
+            });
+        });
+    </script>
+</body>
+</html>
