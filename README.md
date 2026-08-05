@@ -55,8 +55,8 @@ The project combines a desktop PyQt/Tkinter graphical console with an embedded F
 
 ```text
 ┌─────────────────────────┐               HTTP / JSON (Port 8080)             ┌────────────────────────┐
-│   Aria Studio Host      │  ───────────────────────────────────────────────► │   A527 Hardware Server │
-│   (client/app.py)       │  ◄─────────────────────────────────────────────── │   (server/a527_server.py)│
+│   Aria Studio Host      │  ───────────────────────────────────────────────► │   Aria Hardware Server │
+│   (client/app.py)       │  ◄─────────────────────────────────────────────── │ (server/Aria Bridge.py)│
 └───────────┬─────────────┘                                                   └───────────┬────────────┘
             │                                                                             │
             ├─► Render 1920×350 interface preview                                        ├─► Deploy embedded HTML UI (index.html)
