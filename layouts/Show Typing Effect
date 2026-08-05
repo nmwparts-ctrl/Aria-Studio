@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>Apple Style - Spatial Auto-Purge & Bus Control</title>
+    <style>
+        :root {
+            --apple-blue: #007AFF;
+            --apple-red: #FF3B30;
+        }
+
+        body {
+            margin: 0; padding: 0; background: #000;
+            display: flex; justify-content: center; align-items: center;
+            height: 100vh; overflow: hidden;
+            font-family: "SF Pro Display", -apple-system, sans-serif;
+        }
+
+        /* 300x55mm 比例容器 */
+        .window-container {
+            width: 1134px; height: 208px;
+            background: rgba(20, 20, 25, 0.4);
+            backdrop-filter: blur(100px) saturate(210%);
+            -webkit-backdrop-filter: blur(100px) saturate(210%);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 60px;
+            display: flex; align-items: center;
+            padding: 0 60px; box-sizing: border-box;
+            position: relative;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.8);
+        }
+
+        .input-stream {
+            display: flex;
+            align-items: center;
+            gap: 2px;
+            font-size: 84px;
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: -2px;
+            white-space: nowrap;
+            will-change: transform;
+        }
+
+        .char-item {
+            opacity: 0;
+            transform: scale(0.3) translateY(40px);
+            animation: appleIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        @keyframes appleIn {
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        .purge-active {
+            animation: appleOut 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards !important;
+        }
+
+        @keyframes appleOut {
+            to {
+                opacity: 0;
+                transform: scale(1.4) translateY(-30px);
+                filter: blur(10px);
+                color: var(--apple-red);
+            }
+        }
+
+        .cursor {
+            width: 6px; height: 86px;
+            background: var(--apple-blue);
+            border-radius: 3px;
+            margin-left: 8px;
+            animation: blink 1s infinite;
+        }
+
+        @keyframes blink {
+            50% { opacity: 0; }
+        }
+
+        canvas {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: -1;
+            border-radius: 60px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="window-container">
+    <canvas id="particleCanvas"></canvas>
+    <div class="input-stream" id="inputStream">
+        <div class="cursor"></div>
+    </div>
+</div>
+
+<script>
+    const stream = document.getElementById('inputStream');
+    const canvas = document.getElementById('particleCanvas');
+    const ctx = canvas.getContext('2d');
+
+    let particles = [];
+    let isResetting = false;
+
+    function resizeCanvas() {
+        canvas.width = canvas.parentElement.clientWidth;
+        canvas.height = canvas.parentElement.clientHeight;
+    }
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    class Particle {
+        constructor(x, y) {
+            this.x = x;
+            this.y = y;
+            this.vx = (Math.random() - 0.5) * 12;
+            this.vy = (Math.random() - 0.5) * 12 - 3;
+            this.alpha = 1;
+            this.size = Math.random() * 4 + 2;
+            this.color = Math.random() > 0.15 ? '#007AFF' : '#fff';
+        }
+        update() {
+            this.x += this.vx;
+            this.y += this.vy;
+            this.vy += 0.15; // 微重力
+            this.alpha -= 0.02;
+        }
+        draw() {
+            ctx.save();
+            ctx.globalAlpha = this.alpha;
+            ctx.fillStyle = this.color;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = this.color;
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.restore();
+        }
+    }
+
+    function animate() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        particles.forEach((p, index) => {
+            p.update();
+            p.draw();
+            if (p.alpha <= 0) particles.splice(index, 1);
+        });
+        requestAnimationFrame(animate);
+    }
+    animate();
+
+    function checkOverflowAndReset() {
+        if (isResetting) return;
+
+        const containerWidth = stream.parentElement.clientWidth - 120; 
+        const streamWidth = stream.getBoundingClientRect().width;
+
+        if (streamWidth >= containerWidth) {
+            triggerSpatialPurge();
+        }
+    }
+
+    function triggerSpatialPurge() {
+        isResetting = true;
+        const items = stream.querySelectorAll('.char-item');
+        
+        // 全屏爆裂粒子
+        for(let i=0; i<100; i++) particles.push(new Particle(canvas.width/2, canvas.height/2));
+
+        items.forEach((item, i) => {
+            setTimeout(() => {
+                item.classList.add('purge-active');
+                setTimeout(() => item.remove(), 500); // 物理内存释放
+            }, i * 15);
+        });
+
+        setTimeout(() => {
+            isResetting = false;
+        }, 800);
+    }
+
+    // ==================== ? 新增与修正：局域网总线投递 ====================
+    async function sendKeyToA527Backend(charStr) {
+        try {
+            const baseUrl = "http://127.0.0.1:8080"; 
+            const payload = {
+                key_char: charStr,  // 完美对应 Windows 端 Aria Studio 接收解析的键名
+                stats: { lyric: `按键输入: ${charStr}` } // 同步更新 A527 底层的状态歌词
+            };
+            
+            // ?【关键修复】：规范使用 application/json，彻底移除 no-cors，保障跨域数据内容完整传输
+            fetch(`${baseUrl}/push`, { 
+                method: "POST", 
+                headers: { "Content-Type": "application/json" }, 
+                body: JSON.stringify(payload)
+            }).catch(err => console.log("A527 后台暂未建立连接或拒绝请求:", err));
+
+        } catch(e) {
+            console.log("局域网网络总线投递失败:", e.message);
+        }
+    }
+
+    // ==================== 键盘事件深度捕获监听 ====================
+    window.addEventListener('keydown', (e) => {
+        if (isResetting) return;
+
+        // 1. 正常单个字符输入
+        if (e.key.length === 1) {
+            const uppercaseChar = e.key.toUpperCase();
+            
+            // 实时上报给局域网中转总线
+            sendKeyToA527Backend(uppercaseChar);
+
+            const char = document.createElement('div');
+            char.className = 'char-item';
+            char.innerText = uppercaseChar;
+            
+            const cursor = stream.querySelector('.cursor');
+            stream.insertBefore(char, cursor);
+
+            // 粒子反馈
+            const rect = cursor.getBoundingClientRect();
+            const bRect = canvas.getBoundingClientRect();
+            for(let i=0; i<8; i++) particles.push(new Particle(rect.left - bRect.left, rect.top - bRect.top + 30));
+
+            // 每输入一个字母，检查空间
+            requestAnimationFrame(checkOverflowAndReset);
+
+        // 2. 退格删除键捕获
+        } else if (e.key === "Backspace") {
+            // 将退格动作同步上传给 PC
+            sendKeyToA527Backend("BACKSPACE");
+
+            // ?【恢复被截断的逻辑】：执行物理节点的弹出与删除
+            const items = stream.querySelectorAll('.char-item');
+            if (items.length > 0) {
+                items[items.length - 1].remove();
+            }
+        }
+    });
+</script>
+</body>
+</html>
