@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Claude Translucent Telemetry Matrix</title>
+    <style>
+        * { box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, monospace; }
+        
+        html, body {
+            margin: 0; padding: 0; 
+            width: 100vw; height: 100vh; 
+            /* 宿主容器完全通透，允许底层系统渲染穿透 */
+            background-color: transparent !important; 
+            color: #ffffff; overflow: hidden !important;
+            display: flex; justify-content: center; align-items: center;
+        }
+
+        /* 严格锁定 1920x350 (301*55mm) 黄金视窗 */
+        /* 核心修改：升级为暗色半透明 + 硬件级毛玻璃复合滤镜 */
+        .dashboard-container {
+            width: 100%; height: 100%;
+            background: rgba(6, 7, 12, 0.65); 
+            backdrop-filter: blur(20px) saturate(140%);
+            -webkit-backdrop-filter: blur(20px) saturate(140%);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 14px 20px;
+            display: flex; flex-direction: column;
+            overflow: hidden;
+        }
+
+        .dash-body {
+            display: flex; flex: 1; width: 100%; height: 100%; overflow: hidden;
+        }
+
+        /* ---- LEFT PANEL: CLAUDE ALLOCATION ---- */
+        .panel-left {
+            width: 48%; height: 100%; display: flex; flex-direction: column; padding-right: 16px; justify-content: space-between;
+        }
+        
+        .section-title { font-size: 11px; color: #ff9800; font-weight: bold; letter-spacing: 1.2px; text-transform: uppercase; margin-bottom: 2px; }
+        
+        .quota-group { width: 100%; }
+        .quota-row {
+            display: flex; justify-content: space-between; align-items: center; margin-top: 4px;
+        }
+        .quota-label { font-size: 12px; font-weight: 700; color: #cbd0e0; }
+        .quota-meta { font-size: 10.5px; color: #727990; font-family: monospace; }
+        .quota-percent { font-size: 13.5px; font-weight: bold; color: #ffffff; margin-right: 4px; }
+        
+        /* 科技感深邃半透明条 */
+        .progress-bar-bg {
+            width: 100%; height: 6px; background-color: rgba(255, 255, 255, 0.06); margin-top: 3px; border-radius: 1px; overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%; background-color: #ff9800; border-radius: 1px; transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 8px rgba(255, 152, 0, 0.6);
+        }
+
+        /* 费用计算区 */
+        .cost-divider { width: 100%; height: 1px; background-color: rgba(255, 255, 255, 0.08); margin: 4px 0; }
+        .cost-box { display: flex; justify-content: space-between; align-items: center; }
+        .cost-labels { display: flex; flex-direction: column; }
+        .cost-sub-label { font-size: 10px; color: #727990; font-weight: bold; letter-spacing: 0.5px; }
+        .cost-values { display: flex; flex-direction: column; align-items: flex-end; }
+        .cost-usd { font-size: 24px; font-weight: 800; color: #00e676; font-family: monospace; line-height: 1; text-shadow: 0 0 10px rgba(0,230,118,0.4); }
+        .cost-cny { font-size: 12px; font-weight: 600; color: #81c784; font-family: monospace; margin-top: 2px; }
+
+        /* ---- VERTICAL DIVIDER ---- */
+        .panel-divider { width: 1px; height: 100%; background-color: rgba(255, 255, 255, 0.08); }
+
+        /* ---- RIGHT PANEL: TOKENS LOG & CHART ---- */
+        .panel-right {
+            width: 52%; height: 100%; display: flex; flex-direction: column; padding-left: 16px; justify-content: space-between;
+        }
+
+        /* Token 半透明卡牌 */
+        .tokens-grid { display: flex; gap: 6px; }
+        .token-card {
+            flex: 1; border: 1px solid rgba(255, 255, 255, 0.06); border-radius: 2px; padding: 5px 8px; background-color: rgba(0, 0, 0, 0.25);
+        }
+        .card-label { font-size: 8.5px; color: #727990; font-weight: bold; text-transform: uppercase; }
+        .card-value { font-size: 15px; font-weight: 700; color: #ffffff; font-family: monospace; margin-top: 1px; }
+
+        /* 历史趋势图表区 */
+        .chart-container { flex: 1; display: flex; flex-direction: column; position: relative; margin-top: 6px; overflow: hidden; }
+        .chart-workspace { display: flex; flex: 1; align-items: flex-end; justify-content: space-between; padding-top: 4px; border-bottom: 1px dashed rgba(255, 255, 255, 0.1); }
+        
+        .chart-column {
+            display: flex; flex-direction: column; align-items: center; flex: 1; position: relative;
+        }
+        .column-val { font-size: 8px; font-weight: 600; color: #727990; font-family: monospace; margin-bottom: 1px; }
+        
+        /* 斜纹像素感仿真几何柱体 */
+        .column-bar {
+            width: 13px; min-height: 2px;
+            background: repeating-linear-gradient(
+                45deg,
+                #ff9800,
+                #ff9800 2px,
+                transparent 2px,
+                transparent 5px
+            );
+            border: 1px solid #ff9800;
+            transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 0 4px rgba(255, 152, 0, 0.2);
+        }
+        .column-date { font-size: 9.5px; font-weight: bold; color: #53586a; font-family: monospace; margin-top: 2px; }
+
+        /* 图例指示 */
+        .chart-legend { display: flex; gap: 10px; margin-top: 3px; }
+        .legend-item { display: flex; align-items: center; font-size: 8.5px; font-weight: bold; color: #727990; text-transform: uppercase; }
+        .legend-box { 
+            width: 8px; height: 8px; margin-right: 4px; border: 1px solid #ff9800;
+            background: repeating-linear-gradient(45deg, #ff9800, #ff9800 1px, transparent 1px, transparent 3px);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="dashboard-container">
+        <div class="dash-body">
+            
+            <div class="panel-left">
+                <div class="quota-group">
+                    <div class="section-title">Claude CLI (Sonnet 3.5)</div>
+                    <div class="quota-row">
+                        <span class="quota-label">5-Hour Standard</span>
+                        <div>
+                            <span class="quota-percent" id="c-5h-txt">27%</span>
+                            <span class="quota-meta" id="c-5h-eta">2h 47m reset</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="c-5h-bar" style="width: 27%;"></div></div>
+                    
+                    <div class="quota-row" style="margin-top: 4px;">
+                        <span class="quota-label">Weekly Burst Rate</span>
+                        <div>
+                            <span class="quota-percent" id="c-wk-txt">39%</span>
+                            <span class="quota-meta">2d 17h reset</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="c-wk-bar" style="width: 39%; background-color: #b36b00; box-shadow: 0 0 6px rgba(179,107,0,0.4);"></div></div>
+                </div>
+
+                <div class="quota-group">
+                    <div class="section-title">Claude Agent (Haiku Matrix)</div>
+                    <div class="quota-row">
+                        <span class="quota-label">Concurrency Max</span>
+                        <div>
+                            <span class="quota-percent" id="h-5h-txt">94%</span>
+                            <span class="quota-meta">Optimal</span>
+                        </div>
+                    </div>
+                    <div class="progress-bar-bg"><div class="progress-bar-fill" id="h-5h-bar" style="width: 94%; background-color: #ffb74d; box-shadow: 0 0 6px rgba(255,183,77,0.4);"></div></div>
+                </div>
+
+                <div class="cost-divider"></div>
+
+                <div class="cost-box">
+                    <div class="cost-labels">
+                        <span class="cost-sub-label">CLAUDE CODE DEV RATE</span>
+                        <span class="cost-sub-label">ESTIMATED ACCUMULATED</span>
+                    </div>
+                    <div class="cost-values">
+                        <span class="cost-usd" id="cost-usd">$341.82</span>
+                        <span class="cost-cny" id="cost-cny">¥351.35</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="panel-divider"></div>
+
+            <div class="panel-right">
+                <div class="section-title">Telemetry ・ Claude Tokens Log</div>
+                
+                <div class="tokens-grid">
+                    <div class="token-card">
+                        <div class="card-label">7 Days Burst</div>
+                        <div class="card-value" id="tk-7d">1.824B</div>
+                    </div>
+                    <div class="token-card">
+                        <div class="card-label">30 Days Peak</div>
+                        <div class="card-value" id="tk-30d">5.341B</div>
+                    </div>
+                    <div class="token-card">
+                        <div class="card-label">Total Volume</div>
+                        <div class="card-value" id="tk-ttl">13.102B</div>
+                    </div>
+                </div>
+
+                <div class="chart-container">
+                    <div class="section-title" style="margin-bottom: 0;">7-Day Node Concurrency Trend</div>
+                    <div class="chart-workspace">
+                        <div class="chart-column">
+                            <span class="column-val" id="c-val-0">20M</span>
+                            <div class="column-bar" id="c-bar-0" style="height: 12px;"></div>
+                            <span class="column-date">30</span>
+                        </div>
+                        <div class="chart-column">
+                            <span class="column-val" id="c-val-1">-</span>
+                            <div class="column-bar" id="c-bar-1" style="height: 2px;"></div>
+                            <span class="column-date">31</span>
+                        </div>
+                        <div class="chart-column">
+                            <span class="column-val" id="c-val-2">64M</span>
+                            <div class="column-bar" id="c-bar-2" style="height: 24px;"></div>
+                            <span class="column-date">01</span>
+                        </div>
+                        <div class="chart-column">
+                            <span class="column-val" id="c-val-3">50M</span>
+                            <div class="column-bar" id="c-bar-3" style="height: 18px;"></div>
+                            <span class="column-date">02</span>
+                        </div>
+                        <div class="chart-column">
+                            <span class="column-val" id="c-val-4">478M</span>
+                            <div class="column-bar" id="c-bar-4" style="height: 56px;"></div>
+                            <span class="column-date">03</span>
+                        </div>
+                        <div class="chart-column">
+                            <span class="column-val" id="c-val-5">272M</span>
+                            <div class="column-bar" id="c-bar-5" style="height: 40px;"></div>
+                            <span class="column-date">04</span>
+                        </div>
+                        <div class="chart-column">
+                            <span class="column-val" id="c-val-6">626M</span>
+                            <div class="column-bar" id="c-bar-6" style="height: 68px;"></div>
+                            <span class="column-date">05</span>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-legend">
+                        <div class="legend-item"><div class="legend-box"></div>Claude Code CLI</div>
+                        <div class="legend-item"><div class="legend-box" style="border-color:#ffb74d; background:repeating-linear-gradient(45deg, #ffb74d, #ffb74d 1px, transparent 1px, transparent 3px);"></div>Claude Haiku API</div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let usdAccumulator = 341.82;
+        let cnyAccumulator = 351.35;
+        let tok7d = 1.82415;
+        let tokTotal = 13.10248;
+        
+        let barHeights = [12, 2, 24, 18, 56, 40, 68];
+        let barVals = [20, 0, 64, 50, 478, 272, 626];
+
+        function stepTelemetryEngine() {
+            // 1. 数据递增模拟
+            if (Math.random() > 0.3) {
+                const deltaCost = Math.random() * 0.05;
+                usdAccumulator += deltaCost;
+                cnyAccumulator += (deltaCost * 7.24);
+                tok7d += (deltaCost * 0.003);
+                tokTotal += (deltaCost * 0.003);
+
+                document.getElementById('cost-usd').innerText = `$${usdAccumulator.toFixed(2)}`;
+                document.getElementById('cost-cny').innerText = `¥${cnyAccumulator.toFixed(2)}`;
+                document.getElementById('tk-7d').innerText = `${tok7d.toFixed(3)}B`;
+                document.getElementById('tk-ttl').innerText = `${tokTotal.toFixed(3)}B`;
+            }
+
+            // 2. 柱状图微幅起伏
+            if (Math.floor(Date.now() / 1000) % 3 === 0) {
+                const colIndex = Math.floor(Math.random() * 7);
+                if (colIndex !== 1) { 
+                    let deltaHeight = Math.floor((Math.random() - 0.5) * 4);
+                    let finalHeight = Math.max(8, Math.min(72, barHeights[colIndex] + deltaHeight));
+                    let finalVal = Math.floor(barVals[colIndex] * (finalHeight / barHeights[colIndex]));
+                    
+                    document.getElementById(`c-bar-${colIndex}`).style.height = `${finalHeight}px`;
+                    document.getElementById(`c-val-${colIndex}`).innerText = `${finalVal}M`;
+                }
+            }
+
+            // 3. 5小时缓存限额模拟扣减
+            if (Math.floor(Date.now() / 1000) % 20 === 0) {
+                let currentClaudePct = parseInt(document.getElementById('c-5h-txt').innerText);
+                if (currentClaudePct > 5) {
+                    currentClaudePct -= 1;
+                    document.getElementById('c-5h-txt').innerText = `${currentClaudePct}%`;
+                    document.getElementById('c-5h-bar').style.width = `${currentClaudePct}%`;
+                }
+            }
+        }
+
+        setInterval(stepTelemetryEngine, 1000);
+        stepTelemetryEngine();
+    </script>
+</body>
+</html>
