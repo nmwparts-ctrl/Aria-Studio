@@ -1,0 +1,1058 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Skeuomorphic Fast Dual GPU Monitor - 3D升级</title>
+    <style>
+        /* 1. 刚性视口锁死 (Strict Viewport Locking) */
+        html, body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden !important;
+            margin: 0;
+            padding: 0;
+            background-color: #040406;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            box-sizing: border-box;
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+        }
+
+        /* 2. 文本安全熔断机制 (Text Ellipsis) */
+        .truncate {
+            white-space: nowrap !important;
+            overflow: hidden !important;
+            text-overflow: ellipsis !important;
+        }
+
+        :root {
+            --card-bg: rgba(15, 15, 20, 0.4);
+            --card-border: rgba(255, 255, 255, 0.05);
+            --card-border-top: rgba(255, 255, 255, 0.16);
+            --neon-green: #12f360;
+            --neon-glow: rgba(18, 243, 96, 0.45);
+            --neon-blue: #00ddff;
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.5);
+            --text-muted: rgba(255, 255, 255, 0.25);
+            /* 新增3D阴影变量 */
+            --shadow-3d-soft: 0 20px 60px rgba(0,0,0,0.8), 0 0 0 1px rgba(255,255,255,0.03) inset;
+            --shadow-3d-strong: 0 30px 80px rgba(0,0,0,0.9), 0 0 0 1px rgba(255,255,255,0.06) inset;
+            --text-shadow-3d: 0 1px 0 rgba(255,255,255,0.2), 0 2px 4px rgba(0,0,0,0.8), 0 4px 8px rgba(0,0,0,0.4);
+            --text-shadow-glow: 0 0 10px var(--neon-glow), 0 0 20px rgba(18,243,96,0.2);
+        }
+
+        /* 3. 黑曜石流体背景模拟（无占位） */
+        body::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: 
+                radial-gradient(circle at 20% 30%, rgba(20, 22, 35, 0.8) 0%, transparent 60%),
+                radial-gradient(circle at 80% 80%, rgba(10, 35, 20, 0.5) 0%, transparent 60%);
+            z-index: -2;
+            filter: blur(50px);
+        }
+
+        /* 4. 横向主排布网格 (5.5:1 超宽比例适配) */
+        .dashboard-layout {
+            width: 100%;
+            height: 100%;
+            display: grid;
+            grid-template-columns: 1.25fr 1fr;
+            grid-gap: 2.5vw;
+            padding: 4vh 3vw;
+            position: relative;
+        }
+
+        /* 统一玻璃态卡片样式 — 增强3D立体 */
+        .glass-panel {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-top: 1px solid var(--card-border-top);
+            backdrop-filter: blur(35px) saturate(140%);
+            -webkit-backdrop-filter: blur(35px) saturate(140%);
+            border-radius: 24px;
+            /* 3D立体阴影 — 多层叠加模拟厚度 */
+            box-shadow: 
+                inset 0 1px 2px rgba(255, 255, 255, 0.1),
+                0 20px 60px rgba(0, 0, 0, 0.8),
+                0 0 0 1px rgba(255,255,255,0.04) inset,
+                0 10px 30px rgba(0,0,0,0.5);
+            position: relative;
+            overflow: hidden;
+            min-height: 0;
+            min-width: 0;
+            /* 轻微3D透视变换，增强立体感（但保持内容不扭曲） */
+            transform: perspective(1200px) rotateX(0.5deg) rotateY(-0.5deg);
+            transition: transform 0.2s ease, box-shadow 0.3s ease;
+        }
+
+        /* 鼠标悬浮时卡片上浮，增强交互3D感 */
+        .glass-panel:hover {
+            transform: perspective(1200px) rotateX(0deg) rotateY(0deg) translateY(-4px);
+            box-shadow: 
+                inset 0 1px 2px rgba(255, 255, 255, 0.15),
+                0 30px 80px rgba(0, 0, 0, 0.9),
+                0 0 0 1px rgba(255,255,255,0.08) inset,
+                0 15px 40px rgba(0,0,0,0.6);
+        }
+
+        /* 物理自发光开关 — 3D立体化 */
+        .phys-switch {
+            width: 42px;
+            height: 22px;
+            background: #15151b;
+            border-radius: 50px;
+            border: 1px solid rgba(255,255,255,0.06);
+            position: relative;
+            cursor: pointer;
+            box-shadow: 
+                inset 0 2px 4px rgba(0,0,0,0.8),
+                0 2px 4px rgba(255,255,255,0.05);
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+            /* 3D凸起轨道 */
+            transform: perspective(400px) rotateX(2deg);
+        }
+
+        .phys-switch::after {
+            content: '';
+            position: absolute;
+            top: 2px; left: 2px;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: #71717a;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            /* 3D滑块效果 */
+            box-shadow: 
+                0 2px 4px rgba(0,0,0,0.6),
+                inset 0 -1px 2px rgba(255,255,255,0.1),
+                0 0 8px rgba(0,0,0,0.3);
+        }
+
+        .phys-switch.active::after {
+            left: 22px;
+            background: var(--neon-green);
+            box-shadow: 
+                0 0 10px var(--neon-green), 
+                0 0 20px var(--neon-green),
+                0 2px 4px rgba(0,0,0,0.4),
+                inset 0 -1px 2px rgba(255,255,255,0.3);
+        }
+
+        /* ================= 高频自适应组件样式 — 3D增强 ================= */
+        /* A. 4通道微型直方柱（过渡加速至 0.1s） */
+        .cpu-extra-metrics {
+            display: flex;
+            justify-content: space-between;
+            gap: 1vw;
+            width: 100%;
+            margin-top: 0.2vh;
+        }
+
+        .metric-bar-group {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4vh;
+            min-width: 0;
+            background: rgba(255, 255, 255, 0.01);
+            border: 1px solid rgba(255, 255, 255, 0.03);
+            border-radius: 10px;
+            padding: 0.6vh 0.8vw;
+            /* 3D立体卡片微凸 */
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3) inset, 0 1px 0 rgba(255,255,255,0.02);
+        }
+
+        .metric-bar-group span {
+            font-size: clamp(8px, 2.3vh, 10px);
+            color: var(--text-secondary);
+            /* 文字立体感 */
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .metric-bar-group span strong {
+            color: #ffffff;
+            font-weight: 600;
+            /* 高亮数值立体发光 */
+            text-shadow: 0 0 6px rgba(18,243,96,0.2), 0 1px 4px rgba(0,0,0,0.8);
+        }
+
+        .mini-bars {
+            display: flex;
+            gap: 2px;
+            align-items: flex-end;
+            height: 12px;
+            min-height: 0;
+        }
+
+        .m-bar {
+            flex: 1;
+            height: 30%;
+            background: linear-gradient(to top, rgba(18, 243, 96, 0.15), var(--neon-green));
+            border-radius: 1px;
+            transition: height 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
+            /* 立体发光柱 */
+            box-shadow: 0 0 4px var(--neon-glow), inset 0 -1px 2px rgba(255,255,255,0.1);
+        }
+
+        /* B. 主卡实时折线波形图 — 3D发光线条 */
+        .waveform-container {
+            flex: 1;
+            min-height: 0;
+            width: 100%;
+            position: relative;
+            margin: 0.5vh 0;
+            display: flex;
+            align-items: center;
+        }
+
+        .waveform-svg {
+            width: 100%;
+            height: 90%;
+            overflow: visible;
+        }
+
+        /* 波形路径3D发光 — 通过多重滤镜实现立体拖尾 */
+        #wavePathLine {
+            filter: drop-shadow(0 0 2px var(--neon-green)) drop-shadow(0 0 6px var(--neon-green)) drop-shadow(0 0 12px var(--neon-green));
+            stroke-linecap: round;
+        }
+
+        /* C. 副卡等化器树状直方柱子（过渡加速至 0.1s） */
+        .tree-bars-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 2px;
+            width: 75px;
+            height: 38px;
+            background: rgba(255,255,255,0.01);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+            padding: 0 3px 2px;
+            border-radius: 4px;
+            flex-shrink: 0;
+            box-shadow: inset 0 -2px 6px rgba(0,0,0,0.3);
+        }
+
+        .tree-bar {
+            flex: 1;
+            height: 20%;
+            background: linear-gradient(to top, rgba(18, 243, 96, 0.1), var(--neon-green));
+            border-radius: 20px;
+            box-shadow: 0 0 6px var(--neon-glow), inset 0 -1px 2px rgba(255,255,255,0.1);
+            transition: height 0.1s cubic-bezier(0.25, 0.8, 0.25, 1);
+        }
+
+        /* 顶部时间胶囊 — 3D立体 */
+        .system-uptime-capsule {
+            background: rgba(18, 18, 24, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.05);
+            border-radius: 50px;
+            padding: 4px 14px;
+            font-size: clamp(9px, 3vh, 11px);
+            color: var(--text-secondary);
+            display: flex;
+            align-items: center;
+            min-width: 0;
+            box-shadow: 
+                inset 0 1px 2px rgba(255,255,255,0.05),
+                0 4px 8px rgba(0,0,0,0.4);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .system-uptime-capsule span {
+            color: var(--neon-green);
+            font-weight: 600;
+            margin-left: 5px;
+            text-shadow: 0 0 6px var(--neon-glow), 0 1px 4px rgba(0,0,0,0.6);
+        }
+
+        /* GPU 底层覆盖 — 文字3D */
+        .gpu-overlay-metrics {
+            position: absolute;
+            left: 1.5vw;
+            bottom: 2.2vh;
+            display: flex;
+            flex-direction: column;
+            gap: 0.4vh;
+            font-size: clamp(8px, 2.3vh, 11px);
+            color: var(--text-secondary);
+            z-index: 2;
+            max-width: 60%;
+            text-align: left;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+        }
+
+        .gpu-overlay-metrics strong {
+            color: #ffffff;
+            font-weight: 500;
+            text-shadow: 0 0 8px rgba(255,255,255,0.1), 0 1px 4px rgba(0,0,0,0.8);
+        }
+
+        .gpu-bottom-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            min-height: 0;
+            width: 100%;
+        }
+
+        /* 左侧列样式 */
+        .left-col {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            min-height: 0;
+            min-width: 0;
+            gap: 3vh;
+        }
+
+        .left-header-row {
+            display: flex;
+            align-items: center;
+            gap: 1.2vw;
+            height: 12%;
+            min-height: 0;
+        }
+
+        .avatar-capsule {
+            background: rgba(18, 18, 24, 0.6);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 50px;
+            padding: 4px 12px 4px 4px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.4), inset 0 1px 1px rgba(255,255,255,0.05);
+        }
+
+        .avatar-img {
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, var(--neon-green), #0055ff);
+            flex-shrink: 0;
+            box-shadow: 0 0 12px var(--neon-glow);
+        }
+
+        .avatar-text {
+            font-size: clamp(10px, 3.2vh, 12px);
+            font-weight: 500;
+            text-shadow: 0 1px 4px rgba(0,0,0,0.6);
+        }
+
+        .nav-capsule {
+            background: rgba(18, 18, 24, 0.6);
+            border: 1px solid rgba(255,255,255,0.06);
+            border-radius: 50px;
+            padding: 4px;
+            display: flex;
+            gap: 1.2vw;
+            min-width: 0;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3), inset 0 1px 1px rgba(255,255,255,0.05);
+        }
+
+        .nav-pill {
+            padding: 4px 14px;
+            border-radius: 50px;
+            font-size: clamp(9px, 3vh, 11px);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .nav-pill.active {
+            background: rgba(18, 243, 96, 0.12);
+            color: var(--neon-green);
+            border: 1px solid rgba(18, 243, 96, 0.2);
+            font-weight: 600;
+            box-shadow: 0 0 20px rgba(18,243,96,0.1), inset 0 1px 2px rgba(255,255,255,0.1);
+            text-shadow: 0 0 10px var(--neon-glow);
+        }
+
+        .nav-pill:hover {
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            transform: translateY(-1px);
+        }
+
+        /* CPU 宽幅面板 (已改造成 5090 Master) */
+        .cpu-card {
+            flex: 1;
+            padding: 2.5vh 2.2vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        .cpu-card::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background: radial-gradient(ellipse at bottom right, rgba(18, 243, 96, 0.08), transparent 70%);
+            z-index: -1;
+            pointer-events: none;
+        }
+
+        .panel-top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+        }
+
+        .panel-label {
+            font-size: clamp(12px, 4vh, 16px);
+            font-weight: 600;
+            color: var(--text-primary);
+            text-shadow: var(--text-shadow-3d);
+            letter-spacing: 0.3px;
+        }
+
+        .panel-sublabel {
+            font-size: clamp(9px, 3vh, 11px);
+            color: var(--text-secondary);
+            margin-top: 0.2vh;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+        }
+
+        .cpu-data-container {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            min-height: 0;
+            width: 100%;
+        }
+
+        /* 频率横向刻度 — 3D立体文字 */
+        .freq-slider {
+            display: flex;
+            gap: 1.8vw;
+            font-size: clamp(10px, 3.2vh, 12px);
+            color: var(--text-muted);
+            align-items: baseline;
+            min-width: 0;
+            text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+        }
+
+        .freq-slider span.active {
+            color: var(--text-primary);
+            font-size: clamp(12px, 3.8vh, 14px);
+            font-weight: 600;
+            text-shadow: 0 0 10px rgba(255,255,255,0.2), 0 2px 6px rgba(0,0,0,0.8);
+        }
+
+        .temp-display {
+            font-size: clamp(36px, 14vh, 52px);
+            font-weight: 200;
+            line-height: 0.9;
+            letter-spacing: -2px;
+            text-shadow: 0 2px 12px rgba(0,0,0,0.8), 0 0 20px rgba(18,243,96,0.1);
+        }
+
+        .temp-display span {
+            font-size: clamp(14px, 5vh, 18px);
+            font-weight: 400;
+            color: var(--neon-green);
+            vertical-align: super;
+            margin-left: 2px;
+            text-shadow: 0 0 15px var(--neon-glow), 0 2px 8px rgba(0,0,0,0.6);
+        }
+
+        /* 右侧列 */
+        .right-col {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            grid-gap: 2vw;
+            position: relative;
+            min-height: 0;
+            min-width: 0;
+        }
+
+        .right-card {
+            height: 82%;
+            padding: 2.5vh 1.5vw;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+
+        /* GPU 卡片设计（仿原图门锁：机械倾斜感与绿色自发光环） */
+        .gpu-isometric-bg {
+            position: absolute;
+            bottom: -5%;
+            right: -10%;
+            width: 80%;
+            height: 60%;
+            background: linear-gradient(135deg, #101015 0%, #1c1c24 100%);
+            border: 1px solid rgba(255,255,255,0.06);
+            transform: rotate(-15deg) skewX(-10deg);
+            border-radius: 12px;
+            z-index: -1;
+            box-shadow: inset 0 2px 8px rgba(0,0,0,0.8), -10px 10px 20px rgba(0,0,0,0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* 门锁指纹圈转换为 GPU 负载自发光环 — 3D立体 */
+        .gpu-neon-ring {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            border: 4px solid var(--neon-green);
+            box-shadow: 0 0 20px var(--neon-green), 0 0 40px var(--neon-green), inset 0 0 15px var(--neon-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: clamp(10px, 3.2vh, 13px);
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 0 12px rgba(255,255,255,0.5), 0 2px 6px rgba(0,0,0,0.8);
+            background: rgba(0,0,0,0.2);
+        }
+
+        /* COOLING 卡片设计（仿原图扫地机：球形高光镜面设备） */
+        .pump-dome-wrapper {
+            width: clamp(60px, 14vh, 76px);
+            height: clamp(60px, 14vh, 76px);
+            border-radius: 50%;
+            background: radial-gradient(circle at 35% 35%, #252630 0%, #0d0d12 100%);
+            border: 2px solid rgba(255,255,255,0.08);
+            box-shadow: 
+                0 15px 30px rgba(0,0,0,0.6),
+                inset 0 4px 10px rgba(255,255,255,0.1),
+                inset -4px -10px 20px rgba(0,0,0,0.8);
+            margin: 1.5vh auto 0;
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .pump-dome-wrapper::before {
+            content: '';
+            position: absolute;
+            top: 5%; left: 10%;
+            width: 40%; height: 20%;
+            background: linear-gradient(180deg, rgba(255,255,255,0.25) 0%, rgba(255,255,255,0) 100%);
+            border-radius: 50%;
+        }
+
+        /* 内部螺旋旋转发光风扇 — 3D立体 */
+        .pump-fan-blades {
+            width: 70%;
+            height: 70%;
+            border-radius: 50%;
+            border: 2px dashed var(--neon-green);
+            box-shadow: 0 0 12px var(--neon-green), inset 0 0 10px var(--neon-green);
+            animation: pumpSpin 1s infinite linear;
+        }
+
+        @keyframes pumpSpin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .cooling-wave-container {
+            width: 100%;
+            height: 3vh;
+            margin: 0.5vh 0;
+            position: relative;
+            min-height: 0;
+        }
+        .cooling-wave-svg {
+            width: 100%;
+            height: 100%;
+            overflow: visible;
+        }
+
+        /* 水冷波形3D发光 */
+        #coolWavePathLine {
+            filter: drop-shadow(0 0 2px var(--neon-blue)) drop-shadow(0 0 6px var(--neon-blue)) drop-shadow(0 0 12px rgba(0,221,255,0.3));
+        }
+
+        /* 浮动层叠 Dock 胶囊 — 3D立体 */
+        .floating-layered-dock {
+            position: absolute;
+            bottom: 0;
+            right: 0;
+            width: 85%;
+            height: 18%;
+            min-height: 0;
+            background: rgba(18, 18, 25, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-top: 1px solid rgba(255, 255, 255, 0.16);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-radius: 50px;
+            z-index: 10;
+            box-shadow: 
+                inset 0 1px 1px rgba(255,255,255,0.1),
+                0 15px 35px rgba(0, 0, 0, 0.9),
+                0 0 0 1px rgba(255,255,255,0.03) inset;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 6px;
+            transform: perspective(800px) rotateX(1deg);
+        }
+
+        .dock-green-btn {
+            background: rgba(18, 243, 96, 0.15);
+            border: 1px solid rgba(18, 243, 96, 0.3);
+            border-radius: 50px;
+            height: 80%;
+            padding: 0 14px;
+            font-size: clamp(10px, 3vh, 12px);
+            color: var(--neon-green);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            text-shadow: 0 0 6px var(--neon-glow);
+            box-shadow: 
+                inset 0 1px 1px rgba(255,255,255,0.15),
+                0 4px 10px rgba(0,0,0,0.3);
+            transition: all 0.2s ease;
+        }
+
+        .dock-green-btn:hover {
+            transform: translateY(-2px) scale(1.02);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4), inset 0 1px 2px rgba(255,255,255,0.2);
+        }
+
+        .dock-icon-group {
+            display: flex;
+            gap: 1vw;
+            margin-right: 1.5vw;
+        }
+
+        .dock-circle-icon {
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.06);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+            text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+        }
+
+        .dock-circle-icon:hover {
+            color: var(--text-primary);
+            border-color: rgba(255,255,255,0.2);
+            background: rgba(255,255,255,0.08);
+            transform: translateY(-2px) scale(1.08);
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+
+        /* 响应式调整 */
+        @media (max-width: 640px) {
+            .dashboard-layout {
+                grid-template-columns: 1fr;
+                grid-gap: 2vh;
+            }
+            .right-col {
+                grid-template-columns: 1fr 1fr;
+            }
+            .floating-layered-dock {
+                width: 100%;
+                bottom: 0;
+                border-radius: 30px 30px 0 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-layout">
+        <!-- 左侧列 -->
+        <div class="left-col">
+            <!-- 头部导航与状态区 -->
+            <div class="left-header-row">
+                <div class="avatar-capsule">
+                    <div class="avatar-img"></div>
+                    <div class="avatar-text truncate">SYS.ADMIN</div>
+                </div>
+                <div class="nav-capsule">
+                    <div class="nav-pill active truncate">Overview</div>
+                    <div class="nav-pill truncate">Hardware</div>
+                </div>
+                <div class="system-uptime-capsule truncate">
+                    UPTIME <span id="uptimeVal">03:24:12</span>
+                </div>
+            </div>
+
+            <!-- CPU 面板 (Master) -->
+            <div class="glass-panel cpu-card">
+                <div class="panel-top-bar">
+                    <div>
+                        <div class="panel-label truncate">Graphics Compute (Master)</div>
+                        <div class="panel-sublabel truncate">Nvidia RTX 5090 - Card 1</div>
+                    </div>
+                    <div class="phys-switch active" id="pboSwitch"></div>
+                </div>
+
+                <div class="cpu-extra-metrics">
+                    <div class="metric-bar-group">
+                        <span class="truncate">UTIL <strong id="cpuLoad">32%</strong></span>
+                        <div class="mini-bars" id="utilBars">
+                            <div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div>
+                        </div>
+                    </div>
+                    <div class="metric-bar-group">
+                        <span class="truncate">FREQ <strong id="cpuFreq">2.55G</strong></span>
+                        <div class="mini-bars" id="freqBars">
+                            <div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div>
+                        </div>
+                    </div>
+                    <div class="metric-bar-group">
+                        <span class="truncate">PROC <strong id="cpuProc">284</strong></span>
+                        <div class="mini-bars" id="procBars">
+                            <div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div>
+                        </div>
+                    </div>
+                    <div class="metric-bar-group">
+                        <span class="truncate">CUDA <strong id="cudaLoad">85%</strong></span>
+                        <div class="mini-bars" id="cudaBars">
+                            <div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div><div class="m-bar"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="waveform-container">
+                    <svg class="waveform-svg" viewBox="0 0 300 50" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="waveGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="var(--neon-green)" stop-opacity="0.35"/>
+                                <stop offset="100%" stop-color="var(--neon-green)" stop-opacity="0.0"/>
+                            </linearGradient>
+                        </defs>
+                        <path id="wavePathFill" d="M 0,50 L 300,50 Z" fill="url(#waveGrad)" />
+                        <path id="wavePathLine" d="M 0,50 L 300,50 Z" fill="none" stroke="var(--neon-green)" stroke-width="1.8" stroke-linecap="round" />
+                    </svg>
+                </div>
+
+                <div class="cpu-data-container">
+                    <div class="freq-slider">
+                        <span>1.5G</span>
+                        <span>1.8G</span>
+                        <span class="active" id="freqIndicator">2.5G</span>
+                        <span>2.8G</span>
+                        <span>3.0G</span>
+                    </div>
+                    <div class="temp-display truncate" id="cpuTemp">58<span>°C</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右侧列 -->
+        <div class="right-col">
+            <!-- GPU 卡片 (Slave) -->
+            <div class="glass-panel right-card">
+                <div class="panel-top-bar" style="width: 100%;">
+                    <div>
+                        <div class="panel-label" style="font-size: clamp(11px, 3.5vh, 14px);">Graphics (Slave)</div>
+                        <div class="panel-sublabel" style="font-size: clamp(8px, 2.5vh, 10px);">Nvidia RTX 5090 - Card 2</div>
+                    </div>
+                    <div class="phys-switch active" id="gpuSwitch"></div>
+                </div>
+                <div class="gpu-isometric-bg" style="gap: 1.5vw;">
+                    <div class="tree-bars-container">
+                        <div class="tree-bar"></div>
+                        <div class="tree-bar"></div>
+                        <div class="tree-bar"></div>
+                        <div class="tree-bar"></div>
+                        <div class="tree-bar"></div>
+                        <div class="tree-bar"></div>
+                        <div class="tree-bar"></div>
+                    </div>
+                    <div class="gpu-neon-ring" id="gpuLoad">68%</div>
+                </div>
+
+                <div class="gpu-bottom-container">
+                    <div class="gpu-overlay-metrics">
+                        <div class="truncate">3D/DEC/ENC: <strong id="gpuUtilBreakdown">45 / 12 / 0 %</strong></div>
+                        <div class="truncate">VRAM: <strong id="vramVal">16.2 / 32 GB</strong></div>
+                        <div class="truncate">SHARED: <strong id="sharedRamVal">0.8 / 16 GB</strong></div>
+                        <div class="truncate">DRIVER: <strong>v565.90</strong></div>
+                    </div>
+                    <div class="temp-display truncate" style="font-size: clamp(20px, 9.5vh, 28px); margin-left: auto;" id="gpuTemp">62<span>°C</span></div>
+                </div>
+            </div>
+
+            <!-- COOLING 卡片 -->
+            <div class="glass-panel right-card">
+                <div class="panel-top-bar" style="width: 100%;">
+                    <div>
+                        <div class="panel-label" style="font-size: clamp(11px, 3.5vh, 14px);">AIO Liquid</div>
+                        <div class="panel-sublabel" style="font-size: clamp(8px, 2.5vh, 10px);">Pump Running</div>
+                    </div>
+                    <div class="phys-switch active" id="fanSwitch"></div>
+                </div>
+                <div class="pump-dome-wrapper">
+                    <div class="pump-fan-blades" id="fanProp"></div>
+                </div>
+
+                <div class="cooling-wave-container">
+                    <svg class="cooling-wave-svg" viewBox="0 0 150 25" preserveAspectRatio="none">
+                        <defs>
+                            <linearGradient id="coolWaveGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stop-color="var(--neon-blue)" stop-opacity="0.3"/>
+                                <stop offset="100%" stop-color="var(--neon-blue)" stop-opacity="0.0"/>
+                            </linearGradient>
+                        </defs>
+                        <path id="coolWavePathFill" d="M 0,25 L 150,25 Z" fill="url(#coolWaveGrad)" />
+                        <path id="coolWavePathLine" d="M 0,25 L 150,25 Z" fill="none" stroke="var(--neon-blue)" stroke-width="1.3" stroke-linecap="round" />
+                    </svg>
+                </div>
+
+                <div class="panel-sublabel truncate" style="text-align: center;" id="pumpRPM">1850 RPM</div>
+            </div>
+
+            <!-- 浮动层叠 Dock -->
+            <div class="floating-layered-dock">
+                <div class="dock-green-btn truncate">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                    Home
+                </div>
+                <div class="dock-icon-group">
+                    <div class="dock-circle-icon">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+                    </div>
+                    <div class="dock-circle-icon">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+                    </div>
+                    <div class="dock-circle-icon">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 1. 开关物理发光响应
+        document.querySelectorAll('.phys-switch').forEach(btn => {
+            btn.addEventListener('click', () => {
+                btn.classList.toggle('active');
+            });
+        });
+
+        // 2. 联动仿真：风扇物理自发光关闭时，水冷风扇平滑停摆与波形拉直
+        const fanSwitch = document.getElementById('fanSwitch');
+        const fanProp = document.getElementById('fanProp');
+        const pumpRPMText = document.getElementById('pumpRPM');
+
+        fanSwitch.addEventListener('click', () => {
+            if (!fanSwitch.classList.contains('active')) {
+                fanProp.style.animationPlayState = 'paused';
+                fanProp.style.borderColor = 'rgba(255,255,255,0.06)';
+                fanProp.style.boxShadow = 'none';
+                pumpRPMText.innerText = "0 RPM";
+            } else {
+                fanProp.style.animationPlayState = 'running';
+                fanProp.style.borderColor = 'var(--neon-green)';
+                fanProp.style.boxShadow = '0 0 12px var(--neon-green)';
+                pumpRPMText.innerText = "1850 RPM";
+            }
+        });
+
+        // 3. 正常运行时间计时
+        let startupTime = Date.now() - (3 * 3600 * 1000 + 24 * 60 * 1000 + 12 * 1000); 
+        function updateUptime() {
+            let elapsed = Date.now() - startupTime;
+            let h = String(Math.floor(elapsed / 3600000)).padStart(2, '0');
+            let m = String(Math.floor((elapsed % 3600000) / 60000)).padStart(2, '0');
+            let s = String(Math.floor((elapsed % 60000) / 1000)).padStart(2, '0');
+            document.getElementById('uptimeVal').innerText = `${h}:${m}:${s}`;
+        }
+        setInterval(updateUptime, 1000);
+
+        // 4. 双通道高性能折线波形数据初始化
+        const maxWavePoints = 25;
+        let waveHistoryData = Array(maxWavePoints).fill(40);
+        let coolingHistoryData = Array(maxWavePoints).fill(1850);
+
+        // 5. 实时波形渲染
+        function drawWaveform(newVal) {
+            waveHistoryData.push(newVal);
+            if (waveHistoryData.length > maxWavePoints) waveHistoryData.shift();
+
+            const width = 300, height = 50, step = width / (maxWavePoints - 1);
+            let pathPoints = [];
+            for (let i = 0; i < waveHistoryData.length; i++) {
+                let x = i * step;
+                let percent = (waveHistoryData[i] - 15) / (85 - 15);
+                percent = Math.max(0, Math.min(1, percent));
+                let y = height - (percent * (height - 10)) - 5; 
+                pathPoints.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+            }
+            const lineD = "M " + pathPoints.join(" L ");
+            const fillD = lineD + ` L ${width},${height} L 0,${height} Z`;
+
+            document.getElementById('wavePathLine').setAttribute('d', lineD);
+            document.getElementById('wavePathFill').setAttribute('d', fillD);
+        }
+
+        // 6. AIO 冰极蓝风扇频率波形渲染
+        function drawCoolingWaveform(newVal) {
+            coolingHistoryData.push(newVal);
+            if (coolingHistoryData.length > maxWavePoints) coolingHistoryData.shift();
+
+            const width = 150, height = 25, step = width / (maxWavePoints - 1);
+            let pathPoints = [];
+            for (let i = 0; i < coolingHistoryData.length; i++) {
+                let x = i * step;
+                let percent = (coolingHistoryData[i] - 1000) / (2300 - 1000); 
+                percent = Math.max(0, Math.min(1, percent));
+                let y = height - (percent * (height - 6)) - 3;
+                pathPoints.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+            }
+            const lineD = "M " + pathPoints.join(" L ");
+            const fillD = lineD + ` L ${width},${height} L 0,${height} Z`;
+
+            document.getElementById('coolWavePathLine').setAttribute('d', lineD);
+            document.getElementById('coolWavePathFill').setAttribute('d', fillD);
+        }
+
+        // 7. 副卡等化器树状直方柱子刷新
+        function updateTreeBars(loadPercent) {
+            const bars = document.querySelectorAll('.tree-bar');
+            bars.forEach((bar, index) => {
+                let wavePhase = Math.sin((Date.now() / 150) + index) * 12;
+                let height = Math.max(15, Math.min(95, loadPercent + wavePhase));
+                bar.style.height = `${height}%`;
+            });
+        }
+
+        // 8. 4通道微型自发光等化器直方图刷新
+        function updateMiniBars(containerId, activeCount) {
+            const container = document.getElementById(containerId);
+            if (!container) return;
+            const bars = container.querySelectorAll('.m-bar');
+            bars.forEach((bar, index) => {
+                let baseHeight = (index < activeCount) ? 75 : 15;
+                let jitter = (Math.random() * 24) - 12;
+                let finalHeight = Math.max(10, Math.min(100, baseHeight + jitter));
+                bar.style.height = `${finalHeight}%`;
+            });
+        }
+
+        // 9. 平滑随机游走数据初始化
+        let smoothCard1Load = 45;
+        let smoothCard1Freq = 2.45;
+        let smoothCard1Proc = 284;
+        let smoothCard1Cuda = 80;
+        
+        let smoothGpuLoad = 68;
+        let smoothGpuTemp = 62;
+        let smoothPumpRPM = 1850;
+
+        // 10. 高频传感器数据调度器 (150ms)
+        function runSimulation() {
+            const pboSwitch = document.getElementById('pboSwitch');
+            let isPboActive = pboSwitch.classList.contains('active');
+            
+            let card1TargetTemp = isPboActive ? 62 : 50;
+            let card1Temp = parseFloat(document.getElementById('cpuTemp').innerText) || 50;
+            if (Math.abs(card1Temp - card1TargetTemp) > 1) {
+                card1Temp = Math.round(card1Temp + (Math.random() * 0.8 * Math.sign(card1TargetTemp - card1Temp)));
+            } else {
+                card1Temp = card1TargetTemp + (Math.floor(Math.random() * 3) - 1);
+            }
+            document.getElementById('cpuTemp').innerHTML = `${card1Temp}<span>°C</span>`;
+
+            let loadStep = (Math.random() * 8 - 4);
+            smoothCard1Load = Math.max(isPboActive ? 50 : 18, Math.min(isPboActive ? 85 : 30, smoothCard1Load + loadStep));
+            
+            let freqStep = (Math.random() * 0.1 - 0.05);
+            smoothCard1Freq = Math.max(isPboActive ? 2.25 : 1.45, Math.min(isPboActive ? 2.95 : 1.95, smoothCard1Freq + freqStep));
+
+            let procStep = Math.floor(Math.random() * 5 - 2);
+            smoothCard1Proc = Math.max(275, Math.min(305, smoothCard1Proc + procStep));
+
+            let cudaStep = (Math.random() * 10 - 5);
+            smoothCard1Cuda = Math.max(isPboActive ? 75 : 25, Math.min(isPboActive ? 98 : 45, smoothCard1Cuda + cudaStep));
+
+            document.getElementById('cpuLoad').innerText = `${Math.round(smoothCard1Load)}%`;
+            document.getElementById('cpuFreq').innerText = `${smoothCard1Freq.toFixed(2)}G`;
+            document.getElementById('cpuProc').innerText = `${smoothCard1Proc}`;
+            document.getElementById('cudaLoad').innerText = `${Math.round(smoothCard1Cuda)}%`;
+
+            updateMiniBars('utilBars', Math.ceil(smoothCard1Load / 25));
+            updateMiniBars('freqBars', Math.ceil(((smoothCard1Freq - 1.4) / 1.5) * 4));
+            updateMiniBars('procBars', Math.ceil(((smoothCard1Proc - 270) / 35) * 4));
+            updateMiniBars('cudaBars', Math.ceil(smoothCard1Cuda / 25));
+
+            drawWaveform(smoothCard1Load);
+
+            const spans = document.querySelectorAll('.freq-slider span');
+            spans.forEach(s => s.classList.remove('active'));
+            if (smoothCard1Freq < 1.7) spans[0].classList.add('active');
+            else if (smoothCard1Freq < 2.0) spans[1].classList.add('active');
+            else if (smoothCard1Freq < 2.6) spans[2].classList.add('active');
+            else if (smoothCard1Freq < 2.9) spans[3].classList.add('active');
+            else spans[4].classList.add('active');
+
+            const gpuSwitch = document.getElementById('gpuSwitch');
+            if (gpuSwitch.classList.contains('active')) {
+                if (Math.abs(smoothGpuTemp - 61) > 1) {
+                    smoothGpuTemp = Math.round(smoothGpuTemp + (Math.random() * 0.8 * Math.sign(61 - smoothGpuTemp)));
+                } else {
+                    smoothGpuTemp = 61 + (Math.floor(Math.random() * 3) - 1);
+                }
+                document.getElementById('gpuTemp').innerHTML = `${smoothGpuTemp}<span>°C</span>`;
+
+                smoothGpuLoad = Math.max(45, Math.min(95, smoothGpuLoad + (Math.random() * 6 - 3)));
+                document.getElementById('gpuLoad').innerText = `${Math.round(smoothGpuLoad)}%`;
+
+                let decUtil = Math.max(2, Math.min(25, 12 + Math.floor(Math.random() * 4 - 2)));
+                let encUtil = Math.max(0, Math.min(10, 3 + Math.floor(Math.random() * 2 - 1)));
+                let vramUsed = (19.4 + Math.random() * 0.8).toFixed(1);
+                let sharedUsed = (0.8 + Math.random() * 0.1).toFixed(1);
+
+                document.getElementById('gpuUtilBreakdown').innerText = `${Math.round(smoothGpuLoad)} / ${decUtil} / ${encUtil} %`;
+                document.getElementById('vramVal').innerText = `${vramUsed} / 32 GB`;
+                document.getElementById('sharedRamVal').innerText = `${sharedUsed} / 16 GB`;
+
+                updateTreeBars(smoothGpuLoad);
+            } else {
+                document.getElementById('gpuTemp').innerHTML = `35<span>°C</span>`;
+                document.getElementById('gpuLoad').innerText = `0%`;
+                document.getElementById('gpuUtilBreakdown').innerText = `0 / 0 / 0 %`;
+                document.getElementById('vramVal').innerText = `0.0 / 32 GB`;
+                document.getElementById('sharedRamVal').innerText = `0.0 / 16 GB`;
+                updateTreeBars(0);
+            }
+
+            if (fanSwitch.classList.contains('active')) {
+                smoothPumpRPM = Math.max(1750, Math.min(1950, smoothPumpRPM + Math.floor(Math.random() * 30 - 15)));
+                pumpRPMText.innerText = `${smoothPumpRPM} RPM`;
+                drawCoolingWaveform(smoothPumpRPM);
+            } else {
+                drawCoolingWaveform(1000);
+            }
+        }
+
+        setInterval(runSimulation, 150);
+        runSimulation();
+        updateUptime();
+    </script>
+</body>
+</html>
