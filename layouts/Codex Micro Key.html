@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Work Louder | OpenAI 2026 Controller</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Noto+Sans+SC:wght@300;500;700&display=swap" rel="stylesheet">
+    <style>
+        /* ==================== Modern CSS Feature: Register angle variable ==================== */
+        @property --angle {
+            syntax: '<angle>';
+            initial-value: 0deg;
+            inherits: false;
+        }
+
+        /* ==================== Global Reset & Layout ==================== */
+        *, *::before, *::after { box-sizing: border-box; }
+        html, body {
+            width: 100vw; height: 100vh; margin: 0; padding: 0; overflow: hidden !important;
+            background-color: #020306; color: #f8fafc;
+            font-family: 'Noto Sans SC', 'Orbitron', -apple-system, sans-serif; user-select: none;
+            position: relative;
+            background-image: 
+                radial-gradient(at 0% 0%, #06091f 0px, transparent 60%),
+                radial-gradient(at 100% 100%, #03040c 0px, transparent 60%);
+        }
+
+        /* Removed bg-glow layers */
+        
+        /* Main Container: 8px Neon-glowing border + Dark Glassmorphism background */
+        .app-container {
+            position: relative;
+            z-index: 2;
+            width: 100%; height: 100%; display: flex; flex-direction: row;
+            padding: clamp(6px, 1.5vh, 12px); gap: clamp(6px, 1.2vh, 12px);
+            border: 2px solid transparent; 
+            border-radius: 24px;
+            background-clip: padding-box, border-box;
+            background-origin: padding-box, border-box;
+            background-size: 100% 100%, 100% 100%;
+            transition: box-shadow 0.3s ease;
+
+            /* Main interface background: Dark Glassmorphism */
+            background: rgba(4, 5, 10, 0.55) !important;
+            backdrop-filter: blur(30px) saturate(220%);
+            -webkit-backdrop-filter: blur(30px) saturate(220%);
+        }
+
+        /* ==================== Double-Track Neon Glowing Animations ==================== */
+        @keyframes rotate-border {
+            0% { --angle: 0deg; }
+            100% { --angle: 360deg; }
+        }
+
+        /* 1. Idle state */
+        .app-container.glow-global-idle {
+            border-color: rgba(255, 255, 255, 0.15);
+            background-image: 
+                linear-gradient(rgba(4, 5, 10, 0.55), rgba(4, 5, 10, 0.55)),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.15), rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.15));
+            box-shadow: none;
+        }
+
+        /* 2. Thinking state (Electric Cyan) */
+        .app-container.glow-global-thinking {
+            background-image: 
+                linear-gradient(rgba(4, 5, 10, 0.55), rgba(4, 5, 10, 0.55)),
+                conic-gradient(from var(--angle), #00f0ff, #0044ff, #00f0ff, #3b82f6, #00f0ff);
+            animation: rotate-border 3s linear infinite, breathe-thinking 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes breathe-thinking {
+            0% { box-shadow: 0 0 20px rgba(0, 240, 255, 0.5), inset 0 0 15px rgba(0, 240, 255, 0.25); }
+            100% { box-shadow: 0 0 60px rgba(0, 240, 255, 1.0), inset 0 0 30px rgba(0, 240, 255, 0.6); }
+        }
+
+        /* 3. Completed state (Aurora Green) */
+        .app-container.glow-global-completed {
+            background-image: 
+                linear-gradient(rgba(4, 5, 10, 0.55), rgba(4, 5, 10, 0.55)),
+                conic-gradient(from var(--angle), #39ff14, #00aa33, #39ff14, #10b981, #39ff14);
+            animation: rotate-border 3s linear infinite, breathe-completed 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes breathe-completed {
+            0% { box-shadow: 0 0 20px rgba(57, 255, 20, 0.5), inset 0 0 15px rgba(57, 255, 20, 0.25); }
+            100% { box-shadow: 0 0 60px rgba(57, 255, 20, 1.0), inset 0 0 30px rgba(57, 255, 20, 0.6); }
+        }
+
+        /* 4. Waiting state (Solar Orange) */
+        .app-container.glow-global-waiting {
+            background-image: 
+                linear-gradient(rgba(4, 5, 10, 0.55), rgba(4, 5, 10, 0.55)),
+                conic-gradient(from var(--angle), #ffaa00, #ff4400, #ffaa00, #f97316, #ffaa00);
+            animation: rotate-border 3.5s linear infinite, breathe-waiting 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes breathe-waiting {
+            0% { box-shadow: 0 0 20px rgba(255, 170, 0, 0.5), inset 0 0 15px rgba(255, 170, 0, 0.25); }
+            100% { box-shadow: 0 0 60px rgba(255, 170, 0, 1.0), inset 0 0 30px rgba(255, 170, 0, 0.6); }
+        }
+
+        /* 5. Error state (Vibrant Red) */
+        .app-container.glow-global-error {
+            background-image: 
+                linear-gradient(rgba(4, 5, 10, 0.55), rgba(4, 5, 10, 0.55)),
+                conic-gradient(from var(--angle), #ff0055, #aa0000, #ff0055, #ef4444, #ff0055);
+            animation: rotate-border 1.8s linear infinite, breathe-error 1s ease-in-out infinite alternate;
+        }
+        @keyframes breathe-error {
+            0% { box-shadow: 0 0 25px rgba(255, 0, 85, 0.6), inset 0 0 18px rgba(255, 0, 85, 0.35); }
+            100% { box-shadow: 0 0 70px rgba(255, 0, 85, 1.0), inset 0 0 35px rgba(255, 0, 85, 0.7); }
+        }
+
+        /* Left & Right Panel: Transparent background removed */
+        .panel {
+            flex: 1; min-width: 0; height: 100%; 
+            background: transparent !important;
+            border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 14px;
+            box-shadow: inset 0 0 16px rgba(0, 0, 0, 0.5), 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+            display: flex; flex-direction: column; padding: clamp(6px, 1.5vh, 12px);
+        }
+        .panel-header {
+            display: flex; justify-content: space-between; align-items: center;
+            border-bottom: 1px dashed rgba(255, 255, 255, 0.08);
+            padding-bottom: clamp(4px, 0.8vh, 8px); margin-bottom: clamp(6px, 1.2vh, 12px);
+        }
+        .panel-title {
+            font-family: 'Orbitron', sans-serif; font-weight: 900; color: #00bfff;
+            font-size: clamp(10px, 1.8vh, 14px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .panel-subtitle {
+            font-size: clamp(8px, 1.2vh, 11px); color: rgba(255, 255, 255, 0.35);
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        
+        .panel-content {
+            flex: 1; min-height: 0; display: flex; flex-direction: column; 
+            justify-content: center; align-items: center; overflow: visible !important; width: 100%;
+        }
+
+        /* ==================== Left-side Hardware Grid ==================== */
+        .hardware-grid {
+            display: grid; 
+            grid-template-columns: repeat(4, 1fr);
+            grid-template-rows: repeat(2, 1fr);
+            gap: clamp(4px, 1.2vh, 12px);
+            align-items: center;
+            width: 100%; height: 100%;
+            max-width: 96%; max-height: 96%;
+            aspect-ratio: 2 / 1;
+            margin: auto;
+            overflow: visible !important;
+        }
+        .grid-cell {
+            min-width: 0; min-height: 0; display: flex; flex-direction: column; 
+            align-items: center; justify-content: center;
+            background: transparent; border: none; border-radius: 8px;
+            position: relative; padding: 2px; width: 100%; height: 100%;
+            overflow: visible !important;
+        }
+
+        /* Mechanical Dial */
+        .knob-wrapper {
+            width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;
+        }
+        .knob-bezel {
+            position: relative;
+            width: 72%; height: auto; aspect-ratio: 1 / 1; max-width: 52px; max-height: 100%;
+            border-radius: 50%; background: #161e2e; padding: 3px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.6), inset 0 1px 2px rgba(255,255,255,0.05);
+            display: flex; align-items: center; justify-content: center;
+            transition: box-shadow 0.3s ease;
+            margin: auto;
+        }
+        .knob-bezel.glow-fast { box-shadow: 0 0 14px rgba(0, 255, 136, 0.7), 0 4px 10px rgba(0,0,0,0.5); }
+        .knob-bezel.glow-medium { box-shadow: 0 0 14px rgba(0, 191, 255, 0.7), 0 4px 10px rgba(0,0,0,0.5); }
+        .knob-bezel.glow-high { box-shadow: 0 0 14px rgba(255, 170, 0, 0.7), 0 4px 10px rgba(0,0,0,0.5); }
+
+        .knob {
+            width: 100%; height: 100%;
+            background: conic-gradient(from 0deg, #ffffff 0deg, #cbd5e1 90deg, #64748b 180deg, #cbd5e1 270deg, #ffffff 360deg);
+            border-radius: 50%; border: 2px solid #090d16; cursor: grab;
+            box-shadow: inset 0 2px 3px rgba(255,255,255,0.9), inset 0 -3px 6px rgba(0,0,0,0.5);
+            position: relative; z-index: 2;
+        }
+        .knob.snapping {
+            transition: transform 0.25s cubic-bezier(0.25, 1.5, 0.5, 1);
+        }
+        .knob:active { cursor: grabbing; }
+
+        /* Blue dial indicator dot */
+        .knob::after {
+            content: ''; position: absolute; width: 4px; height: 30%; 
+            background: #0044ff; 
+            box-shadow: 0 0 8px #3b82f6, inset 0 1px 1px #93c5fd; 
+            top: 4%; left: 50%; transform: translateX(-50%); border-radius: 2px;
+        }
+
+        .knob-labels {
+            position: absolute; width: 100%; height: 100%; top: 0; left: 0; pointer-events: none;
+        }
+        .k-label {
+            position: absolute; font-family: 'Orbitron'; font-size: clamp(5px, 0.8vh, 7px);
+            color: rgba(255, 255, 255, 0.25); transition: color 0.3s, text-shadow 0.3s;
+            white-space: nowrap;
+        }
+        .k-label.active { color: #00bfff; text-shadow: 0 0 8px #00bfff; font-weight: bold; }
+        .k-top { bottom: 5%; right: -2%; }
+        .k-left { bottom: 5%; left: -2%; } 
+        .k-right { top: -2%; left: 50%; transform: translateX(-50%); }
+
+        /* Agent Keycaps */
+        .agent-btn {
+            width: 100%; height: auto;
+            max-width: 100%; max-height: 100%;
+            aspect-ratio: 1 / 1 !important;
+            margin: auto;
+            position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center;
+            border-radius: 12px; cursor: pointer; 
+            overflow: hidden !important; 
+            padding: clamp(4px, 1.1vh, 8px);
+            background: rgba(17, 24, 39, 0.7);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5), inset 0 1px 1px rgba(255, 255, 255, 0.08);
+            transition: border-color 0.2s, background-color 0.2s, box-shadow 0.2s, transform 0.1s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .agent-btn:active {
+            transform: scale(0.95);
+            box-shadow: 0 2px 4px -1px rgba(0, 0, 0, 0.4);
+        }
+
+        .agent-btn.focused-monitoring {
+            border-color: #00f0ff !important;
+            box-shadow: 0 0 14px rgba(0, 240, 255, 0.55), inset 0 1px 1px rgba(255, 255, 255, 0.12);
+        }
+
+        .agent-fill {
+            position: absolute; bottom: 0; left: 0; width: 100%; height: 0%;
+            transition: height 0.15s linear;
+            z-index: 0; border-radius: 8px;
+        }
+
+        .agent-content {
+            position: relative; z-index: 1;
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+            width: 100%; height: 100%;
+        }
+        .status-indicator {
+            display: flex; align-items: center; justify-content: flex-start; gap: 4px;
+            font-size: clamp(6px, 1vh, 9px); font-weight: bold;
+            white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 100%;
+        }
+        .status-dot { width: 6px; height: 6px; border-radius: 50%; display: inline-block; transition: background 0.2s; }
+        
+        .task-summary {
+            font-size: clamp(5px, 0.85vh, 8.5px); color: rgba(255, 255, 255, 0.65);
+            width: 100%; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+            line-height: 1.2; margin: 1px 0; font-weight: 500;
+        }
+
+        .progress-row {
+            display: flex; justify-content: space-between; align-items: center; width: 100%;
+        }
+        .agent-id-label { font-family: 'Orbitron'; font-size: clamp(6px, 1vh, 9px); color: rgba(255,255,255,0.45); font-weight: 900; }
+        .progress-text {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(8px, 1.2vh, 11px); font-weight: 900;
+            color: #ffffff; text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+        }
+
+        /* Agent Status Layout Colors */
+        .state-idle { 
+            background: rgba(30, 41, 59, 0.3) !important;
+            border: 1px solid rgba(255, 255, 255, 0.05) !important;
+        }
+        .state-idle .status-dot { background: #64748b; }
+        .state-idle .status-indicator { color: #94a3b8; }
+        .state-idle .task-summary { color: rgba(255,255,255,0.3); }
+
+        .state-thinking { border: 1px solid #00f0ff; background: rgba(0, 30, 50, 0.5); box-shadow: inset 0 0 10px rgba(0,240,255,0.3); }
+        .state-thinking .status-dot { background: #00f0ff; box-shadow: 0 0 8px #00f0ff; animation: pulse-blue 0.8s infinite; }
+        .state-thinking .status-indicator { color: #00f0ff; text-shadow: 0 0 4px rgba(0,240,255,0.5); }
+        .state-thinking .agent-fill { background: linear-gradient(to top, rgba(0, 240, 255, 0.4), rgba(0, 240, 255, 0.03)); }
+
+        .state-completed { border: 1px solid #39ff14; background: rgba(0, 40, 20, 0.5); box-shadow: inset 0 0 10px rgba(57,255,20,0.3); }
+        .state-completed .status-dot { background: #39ff14; box-shadow: 0 0 8px #39ff14; }
+        .state-completed .status-indicator { color: #39ff14; text-shadow: 0 0 4px rgba(57,255,20,0.5); }
+        .state-completed .agent-fill { background: linear-gradient(to top, rgba(57, 255, 20, 0.4), rgba(57, 255, 20, 0.03)); }
+
+        .state-waiting { border: 1px solid #ffaa00; background: rgba(40, 25, 0, 0.5); box-shadow: inset 0 0 10px rgba(255,170,0,0.3); }
+        .state-waiting .status-dot { background: #ffaa00; box-shadow: 0 0 8px #ffaa00; animation: pulse-orange 1s infinite; }
+        .state-waiting .status-indicator { color: #ffaa00; text-shadow: 0 0 4px rgba(255,170,0,0.5); }
+        .state-waiting .agent-fill { background: linear-gradient(to top, rgba(255, 170, 0, 0.4), rgba(255, 170, 0, 0.03)); }
+
+        .state-error { border: 1px solid #ff0055; background: rgba(40, 5, 5, 0.5); box-shadow: inset 0 0 10px rgba(255,0,85,0.3); }
+        .state-error .status-dot { background: #ff0055; box-shadow: 0 0 8px #ff0055; animation: pulse-red 0.6s infinite; }
+        .state-error .status-indicator { color: #ff0055; text-shadow: 0 0 4px rgba(255,0,85,0.5); }
+        .state-error .agent-fill { background: linear-gradient(to top, rgba(255, 0, 85, 0.4), rgba(255, 0, 85, 0.03)); }
+
+        /* Four-way Joystick */
+        .joystick-wrapper {
+            width: 100%; height: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center; position: relative;
+            overflow: visible !important;
+        }
+        .joystick-outer {
+            width: 55%; height: auto; aspect-ratio: 1 / 1; max-width: 48px; max-height: 100%;
+            background: #06090f; border: 3px solid #334155; border-radius: 50%;
+            box-shadow: 0 1px 1px rgba(255,255,255,0.05), inset 0 8px 16px rgba(0,0,0,0.9), 0 4px 8px rgba(0,0,0,0.6);
+            display: flex; align-items: center; justify-content: center; position: relative;
+            z-index: 1; margin: auto;
+        }
+        .joystick-boot {
+            position: absolute; width: 75%; height: 75%; border-radius: 50%;
+            background: repeating-radial-gradient(circle, #0f172a, #0f172a 3px, #1e293b 4px, #0f172a 5px);
+            opacity: 0.9; pointer-events: none; box-shadow: inset 0 2px 6px rgba(0,0,0,0.8);
+        }
+        .joystick-inner {
+            width: 45%; height: 45%; aspect-ratio: 1 / 1;
+            background: radial-gradient(circle at 35% 35%, #475569 0%, #1e293b 60%, #030712 100%);
+            border-radius: 50%; 
+            box-shadow: 0 8px 15px rgba(0,0,0,0.7), inset 0 1.5px 2px rgba(255,255,255,0.3), inset 0 -3px 6px rgba(0,0,0,0.6);
+            cursor: grab; position: absolute; transition: transform 0.15s cubic-bezier(0.25, 0.8, 0.25, 1); z-index: 2;
+        }
+        .joystick-inner::after {
+            content: ''; position: absolute; width: 6px; height: 6px; background: #ff1212; border-radius: 50%;
+            top: 50%; left: 50%; transform: translate(-50%, -50%);
+            box-shadow: 0 0 6px #ff1212, inset 0 1px 1px rgba(255,255,255,0.6);
+        }
+
+        .dir-label {
+            position: absolute; font-family: 'Orbitron'; font-size: clamp(6px, 0.9vh, 9px);
+            color: rgba(255, 255, 255, 0.25); white-space: nowrap; transition: all 0.2s ease-in-out; pointer-events: none;
+            z-index: 2;
+        }
+        .dir-label.active { 
+            color: #00f0ff; 
+            text-shadow: 0 0 8px #00f0ff, 0 0 15px rgba(0,240,255,0.6); 
+            font-weight: 900;
+        }
+        
+        .dir-up { top: 0; left: 50%; transform: translateX(-50%); }
+        .dir-up.active { transform: translateX(-50%) scale(1.15) !important; }
+
+        .dir-down { bottom: 0; left: 50%; transform: translateX(-50%); }
+        .dir-down.active { transform: translateX(-50%) scale(1.15) !important; }
+
+        .dir-left { left: 0; top: 50%; transform: translateY(-50%); }
+        .dir-left.active { transform: translateY(-50%) scale(1.15) !important; }
+
+        .dir-right { right: 0; top: 50%; transform: translateY(-50%); }
+        .dir-right.active { transform: translateY(-50%) scale(1.15) !important; }
+
+        /* ==================== SVG Generic Icons ==================== */
+        .svg-icon {
+            width: clamp(14px, 3.2vh, 20px);
+            height: clamp(14px, 3.2vh, 20px);
+            stroke-width: 1.8;
+            stroke: currentColor;
+            fill: none;
+            display: inline-block;
+            transition: transform 0.2s ease-in-out;
+        }
+        .action-btn:hover .svg-icon {
+            transform: scale(1.1);
+        }
+
+        /* ==================== Right-side Control Panel ==================== */
+        .panel-content-right { flex: 1; min-height: 0; display: flex; flex-direction: column; gap: clamp(6px, 1vh, 10px); justify-content: center; }
+        .action-row { height: 48%; min-height: 0; display: flex; gap: clamp(6px, 0.8vh, 10px); }
+        
+        /* Interactive buttons on the right */
+        .action-btn {
+            flex: 1; min-width: 0; background: linear-gradient(135deg, #ffffff 0%, #f1f5f9 100%);
+            border: 1px solid #cbd5e1; border-radius: 8px;
+            box-shadow: 0 3px 0 #94a3b8, 0 4px 6px rgba(0, 0, 0, 0.4);
+            display: flex; flex-direction: column; justify-content: center; align-items: center;
+            padding: clamp(2px, 0.5vh, 4px); cursor: pointer; 
+            transition: transform 0.15s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.15s ease;
+        }
+        .action-btn:active, .action-btn.simulated-press { 
+            transform: translateY(3px) !important; 
+            box-shadow: 0 0px 0 #94a3b8, 0 1px 2px rgba(0,0,0,0.2) !important; 
+        }
+        
+        .btn-label-box { display: flex; flex-direction: column; align-items: center; width: 100%; margin-top: clamp(2px, 0.4vh, 5px); }
+        .btn-primary-label { font-family: 'Orbitron', sans-serif; font-weight: bold; color: #0f172a; font-size: clamp(7px, 1.1vh, 10px); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .btn-desc-label { font-size: clamp(6px, 0.9vh, 8px); color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 95%; }
+
+        .input-row { height: 48%; min-height: 0; display: flex; gap: clamp(6px, 0.8vh, 10px); }
+        .model-selector-container { flex: 1.2; min-width: 0; display: flex; align-items: center; justify-content: center; }
+
+        /* ==================== Display Monitor Panel ==================== */
+        .model-pad {
+            width: 100%; height: 100%; border-radius: 8px; border: 2px solid #27272a;
+            position: relative; cursor: pointer; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; padding: clamp(4px, 0.8vh, 10px);
+            overflow: hidden; transition: all 0.3s ease;
+            box-shadow: inset 0 2px 6px rgba(0,0,0,0.8), 0 2px 4px rgba(0,0,0,0.4);
+            
+            /* Screen Window Background: Dark Glassmorphism */
+            background-color: rgba(9, 13, 22, 0.65) !important;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+        .model-pad:active { transform: scale(0.97); }
+
+        /* Progress fill container (from left to right) */
+        .model-pad-progress-fill {
+            position: absolute;
+            top: 0; left: 0; bottom: 0;
+            width: 0%; 
+            z-index: 1;
+            pointer-events: none;
+            transition: width 0.1s linear, background-color 0.25s ease;
+        }
+
+        /* 5 AI model theme gradients */
+        .brand-gemini .model-pad-progress-fill {
+            background-image: linear-gradient(90deg, rgba(142, 117, 255, 0.02) 0%, rgba(142, 117, 255, 0.22) 100%);
+        }
+        .brand-claude .model-pad-progress-fill {
+            background-image: linear-gradient(90deg, rgba(255, 106, 51, 0.02) 0%, rgba(255, 106, 51, 0.22) 100%);
+        }
+        .brand-deepseek .model-pad-progress-fill {
+            background-image: linear-gradient(90deg, rgba(77, 107, 254, 0.02) 0%, rgba(77, 107, 254, 0.22) 100%);
+        }
+        .brand-kimi .model-pad-progress-fill {
+            background-image: linear-gradient(90deg, rgba(254, 60, 0, 0.02) 0%, rgba(254, 60, 0, 0.22) 100%);
+        }
+        .brand-codex .model-pad-progress-fill {
+            background-image: linear-gradient(90deg, rgba(16, 185, 129, 0.02) 0%, rgba(16, 185, 129, 0.22) 100%);
+        }
+
+        /* Glass screen content overlay */
+        .screen-content {
+            position: relative;
+            z-index: 2;
+            display: flex; flex-direction: column; align-items: center; justify-content: space-between; 
+            width: 100%; height: 100%; pointer-events: none;
+            transition: opacity 0.2s ease-in-out, transform 0.2s ease-in-out;
+        }
+        .screen-content.updating { opacity: 0; transform: translateY(2px); }
+
+        .monitor-header {
+            display: flex; width: 100%; justify-content: space-between; align-items: center;
+            font-family: 'Orbitron', sans-serif; font-size: clamp(6px, 0.9vh, 8px); font-weight: 900;
+            letter-spacing: 0.5px; opacity: 0.8; line-height: 1; border-bottom: 1px dashed rgba(255, 255, 255, 0.12);
+            padding-bottom: 2px; margin-bottom: 2px;
+        }
+        .monitor-agent-id { color: #ffffff; }
+        .monitor-status-badge { transition: color 0.25s; text-transform: uppercase; font-weight: bold; }
+
+        .model-logo-box {
+            width: 100%; height: clamp(14px, 3vh, 22px); display: flex; align-items: center; justify-content: center;
+            margin: 2px 0;
+        }
+        .model-logo-box svg { max-width: 80%; max-height: 80%; object-fit: contain; }
+        
+        .model-text-box { display: flex; flex-direction: column; align-items: center; width: 100%; text-align: center; }
+        .model-brand { font-family: 'Orbitron', sans-serif; font-size: clamp(6.5px, 1vh, 9px); font-weight: 900; letter-spacing: 0.4px; line-height: 1; }
+        .model-engine { font-size: clamp(5.5px, 0.8vh, 7px); opacity: 0.5; letter-spacing: 0.2px; margin-top: 1px; }
+
+        /* Neon boundaries and glowing borders */
+        .brand-gemini { border-color: rgba(142, 117, 255, 0.4); color: #e8e6ff; box-shadow: inset 0 0 10px rgba(142,117,255,0.1), 0 0 12px rgba(142,117,255,0.05); }
+        .brand-claude { border-color: rgba(255, 106, 51, 0.4); color: #fbf0ea; box-shadow: inset 0 0 10px rgba(255,106,51,0.1), 0 0 12px rgba(255,106,51,0.05); }
+        .brand-deepseek { border-color: rgba(77, 107, 254, 0.4); color: #a5b4fc; box-shadow: inset 0 0 10px rgba(77,107,254,0.1), 0 0 12px rgba(77,107,254,0.05); }
+        .brand-kimi { border-color: rgba(254, 60, 0, 0.4); color: #ffe4e6; box-shadow: inset 0 0 10px rgba(254,60,0,0.1), 0 0 12px rgba(254,60,0,0.05); }
+        .brand-codex { border-color: rgba(16, 185, 129, 0.4); color: #d1fae5; box-shadow: inset 0 0 10px rgba(16,185,129,0.1), 0 0 12px rgba(16,185,129,0.05); }
+
+        .voice-btn {
+            flex: 1.5; min-width: 0; background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+            border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 3px 0 #94a3b8, 0 4px 6px rgba(0,0,0,0.4);
+            display: flex; align-items: center; justify-content: center; gap: 4px; padding: 0 clamp(4px, 1vw, 10px); cursor: pointer; 
+            transition: transform 0.15s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.15s ease;
+        }
+        .voice-btn:active, .voice-btn.simulated-press { 
+            transform: translateY(3px) !important; 
+            box-shadow: 0 0px 0 #94a3b8, 0 1px 2px rgba(0,0,0,0.2) !important; 
+        }
+        .voice-text { font-size: clamp(8px, 1.2vh, 10px); font-weight: bold; color: #0f172a; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .voice-wave-container { display: flex; gap: 2px; align-items: center; height: 11px; }
+        .wave-bar { width: 2px; height: 3px; background-color: #2563eb; border-radius: 1px; }
+        .wave-bar:nth-child(2) { height: 7px; } .wave-bar:nth-child(3) { height: 4px; }
+        
+        .send-btn {
+            flex: 1; min-width: 0; background: linear-gradient(135deg, #ffffff 0%, #e2e8f0 100%);
+            border: 1px solid #cbd5e1; border-radius: 8px; box-shadow: 0 3px 0 #94a3b8, 0 4px 6px rgba(0,0,0,0.4);
+            display: flex; flex-direction: column; justify-content: center; align-items: center; cursor: pointer; 
+            transition: transform 0.15s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.15s ease;
+        }
+        .send-btn:active, .send-btn.simulated-press { 
+            transform: translateY(3px) !important; 
+            box-shadow: 0 0px 0 #94a3b8, 0 1px 2px rgba(0,0,0,0.2) !important; 
+        }
+        .send-text { font-family: 'Orbitron', sans-serif; font-weight: bold; font-size: clamp(7px, 1.1vh, 9px); color: #0f172a; }
+    </style>
+</head>
+<body>
+    <!-- Removed floating ambient background neon lights (bg-glow layers) -->
+
+    <div class="app-container glow-global-idle" id="globalContainer">
+        
+        <!-- ==================== LEFT PANEL: AGENT CORE MATRIX ==================== -->
+        <section class="panel">
+            <div class="panel-header">
+                <span class="panel-title">AGENT CORE MATRIX</span>
+                <span class="panel-subtitle">Multi-Thread Concurrency Engine</span>
+            </div>
+            
+            <div class="panel-content">
+                <div class="hardware-grid">
+                    <!-- Physical Snapping Dial -->
+                    <div class="grid-cell">
+                        <div class="knob-wrapper">
+                            <div class="knob-labels">
+                                <span class="k-label k-left active" id="tag-fast">FST</span>
+                                <span class="k-label k-right" id="tag-medium">MED</span>
+                                <span class="k-label k-top" id="tag-high">HGH</span>
+                            </div>
+                            <div class="knob-bezel glow-medium" id="knobBezel">
+                                <div class="knob" id="reasoningKnob" style="transform: rotate(0deg);"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent 1 Keycap -->
+                    <div class="grid-cell">
+                        <button class="agent-btn state-idle focused-monitoring" id="agent-1" style="aspect-ratio: 1 / 1 !important; width: 100%; max-width: 100%; height: auto; max-height: 100%; margin: auto;">
+                            <div class="agent-fill" id="fill-1"></div>
+                            <div class="agent-content">
+                                <div class="status-indicator">
+                                    <span class="status-dot"></span> <span class="status-text">Idle</span>
+                                </div>
+                                <div class="task-summary" id="summary-1">Pending...</div>
+                                <div class="progress-row">
+                                    <span class="agent-id-label">A1</span>
+                                    <span class="progress-text" id="text-1">0%</span>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Agent 2 Keycap -->
+                    <div class="grid-cell">
+                        <button class="agent-btn state-idle" id="agent-2" style="aspect-ratio: 1 / 1 !important; width: 100%; max-width: 100%; height: auto; max-height: 100%; margin: auto;">
+                            <div class="agent-fill" id="fill-2"></div>
+                            <div class="agent-content">
+                                <div class="status-indicator">
+                                    <span class="status-dot"></span> <span class="status-text">Idle</span>
+                                </div>
+                                <div class="task-summary" id="summary-2">Pending...</div>
+                                <div class="progress-row">
+                                    <span class="agent-id-label">A2</span>
+                                    <span class="progress-text" id="text-2">0%</span>
+                                </div>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Four-way Joystick -->
+                    <div class="grid-cell">
+                        <div class="joystick-wrapper">
+                            <span class="dir-label dir-up">Review</span>
+                            <span class="dir-label dir-down">Other</span>
+                            <span class="dir-label dir-left">Debug</span>
+                            <span class="dir-label dir-right">Refactor</span>
+                            <div class="joystick-outer">
+                                <div class="joystick-boot"></div>
+                                <div class="joystick-inner" id="joystickKnob"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Agent 3 Keycap -->
+                    <div class="grid-cell">
+                        <button class="agent-btn state-idle" id="agent-3" style="aspect-ratio: 1 / 1 !important; width: 100%; max-width: 100%; height: auto; max-height: 100%; margin: auto;">
+                            <div class="agent-fill" id="fill-3"></div>
+                            <div class="agent-content">
+                                <div class="status-indicator"><span class="status-dot"></span> <span class="status-text">Idle</span></div>
+                                <div class="task-summary" id="summary-3">Pending...</div>
+                                <div class="progress-row"><span class="agent-id-label">A3</span><span class="progress-text" id="text-3">0%</span></div>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <!-- Agent 4 Keycap -->
+                    <div class="grid-cell">
+                        <button class="agent-btn state-idle" id="agent-4" style="aspect-ratio: 1 / 1 !important; width: 100%; max-width: 100%; height: auto; max-height: 100%; margin: auto;">
+                            <div class="agent-fill" id="fill-4"></div>
+                            <div class="agent-content">
+                                <div class="status-indicator"><span class="status-dot"></span> <span class="status-text">Idle</span></div>
+                                <div class="task-summary" id="summary-4">Pending...</div>
+                                <div class="progress-row"><span class="agent-id-label">A4</span><span class="progress-text" id="text-4">0%</span></div>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <!-- Agent 5 Keycap -->
+                    <div class="grid-cell">
+                        <button class="agent-btn state-idle" id="agent-5" style="aspect-ratio: 1 / 1 !important; width: 100%; max-width: 100%; height: auto; max-height: 100%; margin: auto;">
+                            <div class="agent-fill" id="fill-5"></div>
+                            <div class="agent-content">
+                                <div class="status-indicator"><span class="status-dot"></span> <span class="status-text">Idle</span></div>
+                                <div class="task-summary" id="summary-5">Pending...</div>
+                                <div class="progress-row"><span class="agent-id-label">A5</span><span class="progress-text" id="text-5">0%</span></div>
+                            </div>
+                        </button>
+                    </div>
+                    
+                    <!-- Agent 6 Keycap -->
+                    <div class="grid-cell">
+                        <button class="agent-btn state-idle" id="agent-6" style="aspect-ratio: 1 / 1 !important; width: 100%; max-width: 100%; height: auto; max-height: 100%; margin: auto;">
+                            <div class="agent-fill" id="fill-6"></div>
+                            <div class="agent-content">
+                                <div class="status-indicator"><span class="status-dot"></span> <span class="status-text">Idle</span></div>
+                                <div class="task-summary" id="summary-6">Pending...</div>
+                                <div class="progress-row"><span class="agent-id-label">A6</span><span class="progress-text" id="text-6">0%</span></div>
+                            </div>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ==================== RIGHT PANEL: CONTROL & INPUT HUB ==================== -->
+        <section class="panel">
+            <div class="panel-header">
+                <span class="panel-title">CONTROL & INPUT HUB</span>
+                <span class="panel-subtitle">You can just build things</span>
+            </div>
+            <div class="panel-content-right">
+                <div class="action-row">
+                    <!-- Right Button 1: Fork -->
+                    <button class="action-btn" id="btn-fork">
+                        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M18 18c0-1.7-1.3-3-3-3h-6c-1.7 0-3 1.3-3 3M12 15V6M12 6a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM6 24a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM18 24a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM12 6a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+                        </svg>
+                        <div class="btn-label-box"><span class="btn-primary-label">FORK</span><span class="btn-desc-label">Create new branch</span></div>
+                    </button>
+                    
+                    <!-- Right Button 2: Accept -->
+                    <button class="action-btn" id="btn-accept">
+                        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M20 6L9 17l-5-5"/>
+                        </svg>
+                        <div class="btn-label-box"><span class="btn-primary-label">ACCEPT</span><span class="btn-desc-label">Accept AI suggestion</span></div>
+                    </button>
+                    
+                    <!-- Right Button 3: Reject -->
+                    <button class="action-btn" id="btn-reject">
+                        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M18 6L6 18M6 6l12 12"/>
+                        </svg>
+                        <div class="btn-label-box"><span class="btn-primary-label">REJECT</span><span class="btn-desc-label">Decline modifications</span></div>
+                    </button>
+                    
+                    <!-- Right Button 4: New Chat -->
+                    <button class="action-btn" id="btn-newchat">
+                        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+                        </svg>
+                        <div class="btn-label-box"><span class="btn-primary-label">NEW CHAT</span><span class="btn-desc-label">Clear current session</span></div>
+                    </button>
+                </div>
+                <div class="input-row">
+                    <div class="model-selector-container" id="modelSelector">
+                        <!-- Dual-Linked Display Monitor Window (Frosted Glass) -->
+                        <div class="model-pad brand-gemini" id="modelPad" title="Models cycle automatically every 3s. Click to cycle manually.">
+                            <!-- Background horizontal progress sweep fill -->
+                            <div class="model-pad-progress-fill" id="monitorProgressFill"></div>
+                            
+                            <!-- Display Content Panel Overlay -->
+                            <div class="screen-content" id="screenContent">
+                                <div class="monitor-header">
+                                    <span class="monitor-agent-id" id="monitorAgentId">AGENT A1</span>
+                                    <span class="monitor-status-badge" id="monitorStatus">IDLE 0%</span>
+                                </div>
+                                <div class="model-logo-box" id="modelLogo"></div>
+                                <div class="model-text-box">
+                                    <span class="model-brand" id="modelName">GEMINI</span>
+                                    <span class="model-engine" id="modelEngine">PRO v1.5</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Right Button 5: Voice Push-to-Talk -->
+                    <button class="voice-btn" id="btn-voice">
+                        <div class="voice-wave-container"><div class="wave-bar"></div><div class="wave-bar"></div><div class="wave-bar"></div></div>
+                        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-left: 2px;">
+                            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                            <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8"/>
+                        </svg>
+                        <span class="voice-text">PUSH TO TALK</span>
+                    </button>
+                    
+                    <!-- Bottom-Right Send Button -->
+                    <button class="send-btn" id="btn-send">
+                        <svg class="svg-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" style="margin-bottom: 2px;">
+                            <line x1="22" y1="2" x2="11" y2="13"/>
+                            <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+                        </svg>
+                        <span class="send-text">SEND</span>
+                    </button>
+                </div>
+            </div>
+        </section>
+    </div>
+<!-- ==================== Multi-Thread Concurrency Engine logic ==================== -->
+    <script>
+        // --- 1. High-fidelity SVG Logos ---
+        const geminiLogo = `<svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C12 7.5 7.5 12 2 12C7.5 12 12 16.5 12 22C12 16.5 16.5 12 22 12C16.5 12 12 7.5 12 2Z" fill="url(#gemini-grad-monitor)"/><defs><linearGradient id="gemini-grad-monitor" x1="2" y1="12" x2="22" y2="12" gradientUnits="userSpaceOnUse"><stop offset="0%" stop-color="#93c5fd" /><stop offset="50%" stop-color="#a855f7" /><stop offset="100%" stop-color="#f43f5e" /></linearGradient></defs></svg>`;
+        const claudeLogo = `<svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M12 2C10.5 5 8 9.5 5.5 12C3.5 14 2 15 2 16C2 17.5 4 19 6.5 19C9.5 19 11.5 16 13 13C14.5 10 17 5 19.5 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" fill="none" /><circle cx="17.5" cy="16.5" r="3.5" fill="currentColor" /></svg>`;
+        const deepseekLogo = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9s2.015-9 4.5-9m0 0a9.003 9.003 0 0 1 8.716 6.747M12 3a9.003 9.003 0 0 0-8.716 6.747M3 12h18" /></svg>`;
+        const kimiLogo = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l5.197-3.096A8.978 8.978 0 0012 3a8.978 8.978 0 00-2.187 12.904z" /></svg>`;
+        const codexLogo = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+
+        // --- 2. 5 Mainstream AI Core Engine Pool ---
+        const brandsPool = [
+            { name: "GEMINI", engine: "PRO v1.5", class: "brand-gemini", logo: geminiLogo },
+            { name: "CLAUDE", engine: "SONNET 3.5", class: "brand-claude", logo: claudeLogo },
+            { name: "DEEPSEEK", engine: "V3 CHIP-CORE", class: "brand-deepseek", logo: deepseekLogo },
+            { name: "KIMI", engine: "CONTEXT 2M", class: "brand-kimi", logo: kimiLogo },
+            { name: "CODEX", engine: "GPT-E v4.0", class: "brand-codex", logo: codexLogo }
+        ];
+
+        // Core Model Assignment Map for Agents A1-A6
+        const modelConfig = {
+            1: { ...brandsPool[0] }, // Gemini
+            2: { ...brandsPool[1] }, // Claude
+            3: { ...brandsPool[2] }, // DeepSeek
+            4: { ...brandsPool[3] }, // Kimi
+            5: { ...brandsPool[4] }, // Codex
+            6: { ...brandsPool[0] }  // Gemini
+        };
+
+        let activeAgentId = 1; // Default Monitored Agent
+
+        // --- 3. Concurrency Thread Telemetry Database ---
+        const agentStates = {};
+        const stateConfig = { idle: { text: 'Idle' }, thinking: { text: 'Thinking' }, waiting: { text: 'Waiting' }, completed: { text: 'Completed' }, error: { text: 'Error' } };
+        const taskPool = {
+            thinking: ["Generating Code...", "Compiling Components...", "Injecting Dependencies...", "Analyzing Core Structure...", "Neural Reasoning...", "Rendering Layout View..."],
+            waiting: ["Suspended: Low Tokens", "Awaiting Approval", "Queued in Pipeline", "Network Handshake Delay"],
+            completed: ["Deployment Success", "Refactored Complete", "Integration Tests Passed", "Knowledge Bank Ready"],
+            error: ["Stack Overflow (500)", "Compilation Terminated", "Syntax Parse Failed", "Timeout Circuit Cut"]
+        };
+
+        function getRandomSummary(state) {
+            if (state === 'idle') return "Ready / Idle";
+            const pool = taskPool[state];
+            return pool ? pool[Math.floor(Math.random() * pool.length)] : "Processing...";
+        }
+
+        // --- 4. Right-side display telemetry & progress sweep updates ---
+        function syncMonitor(id) {
+            if (id !== activeAgentId) return;
+
+            const agent = agentStates[id];
+            const config = modelConfig[id];
+            const statusBadge = document.getElementById('monitorStatus');
+            const pad = document.getElementById('modelPad');
+            const fill = document.getElementById('monitorProgressFill');
+            
+            document.getElementById('monitorAgentId').textContent = `AGENT A${id}`;
+            pad.className = `model-pad ${config.class}`;
+            
+            document.getElementById('modelLogo').innerHTML = config.logo;
+            document.getElementById('modelName').textContent = config.name;
+            document.getElementById('modelEngine').textContent = config.engine;
+            
+            let percentVal = Math.floor(agent.progress);
+            if (agent.state === 'completed') percentVal = 100;
+            if (agent.state === 'idle') percentVal = 0;
+
+            fill.style.width = `${percentVal}%`;
+            statusBadge.textContent = `${agent.state.toUpperCase()} ${percentVal}%`;
+            
+            if (agent.state === 'error') {
+                statusBadge.textContent = `ERROR`;
+                statusBadge.style.color = '#ff0055';
+            } else if (agent.state === 'completed') {
+                statusBadge.style.color = '#39ff14';
+            } else if (agent.state === 'waiting') {
+                statusBadge.style.color = '#ffaa00';
+            } else if (agent.state === 'thinking') {
+                statusBadge.style.color = '#00f0ff';
+            } else {
+                statusBadge.style.color = '#94a3b8';
+            }
+        }
+
+        // --- 5. Dual-track Neon Glow Border Animation Updates ---
+        function updateGlobalBorderGlow() {
+            const container = document.getElementById('globalContainer');
+            const statesArr = Object.values(agentStates).map(a => a.state);
+
+            if (statesArr.includes('error')) {
+                container.className = 'app-container glow-global-error';
+            } else if (statesArr.includes('waiting')) {
+                container.className = 'app-container glow-global-waiting';
+            } else if (statesArr.includes('completed')) {
+                container.className = 'app-container glow-global-completed';
+            } else if (statesArr.includes('thinking')) {
+                container.className = 'app-container glow-global-thinking';
+            } else {
+                container.className = 'app-container glow-global-idle';
+            }
+        }
+
+        function initAgents() {
+            for (let i = 1; i <= 6; i++) {
+                agentStates[i] = {
+                    state: 'idle',
+                    progress: 0,
+                    interval: null,
+                    baseSpeed: 2.0 + Math.random() * 2.5
+                };
+                
+                const btn = document.getElementById(`agent-${i}`);
+                btn.addEventListener('click', () => switchMonitoringTarget(i));
+                
+                setTimeout(() => {
+                    executeStateLoop(i, Math.random() > 0.4 ? 'thinking' : 'idle');
+                }, Math.random() * 600);
+            }
+            syncMonitor(activeAgentId);
+
+            // Start 3s model cycle
+            startModelAutoCycle();
+
+            // Start 3s simulated button presses on the right
+            startSimulatedPressCycle();
+        }
+
+        function switchMonitoringTarget(id) {
+            const oldBtn = document.getElementById(`agent-${activeAgentId}`);
+            if (oldBtn) oldBtn.classList.remove('focused-monitoring');
+
+            const screen = document.getElementById('screenContent');
+            screen.classList.add('updating'); 
+
+            setTimeout(() => {
+                activeAgentId = id;
+                const newBtn = document.getElementById(`agent-${id}`);
+                if (newBtn) newBtn.classList.add('focused-monitoring');
+                
+                syncMonitor(id);
+                screen.classList.remove('updating');
+            }, 150);
+        }
+
+        function handleUserOverride(id) {
+            const curr = agentStates[id].state;
+            if (curr === 'idle' || curr === 'completed' || curr === 'error') {
+                executeStateLoop(id, 'thinking');
+            } else if (curr === 'thinking') {
+                executeStateLoop(id, 'waiting');
+            } else {
+                executeStateLoop(id, 'idle');
+            }
+        }
+
+        document.querySelectorAll('.agent-btn').forEach(btn => {
+            btn.addEventListener('dblclick', (e) => {
+                e.stopPropagation();
+                const id = parseInt(btn.id.split('-')[1]);
+                handleUserOverride(id);
+            });
+        });
+
+        function executeStateLoop(id, targetState) {
+            const agent = agentStates[id];
+            const btn = document.getElementById(`agent-${id}`);
+            const fillEl = document.getElementById(`fill-${id}`);
+            const textEl = document.getElementById(`text-${id}`);
+            const summaryEl = document.getElementById(`summary-${id}`);
+            const statusText = btn.querySelector('.status-text');
+
+            if (agent.interval) {
+                clearInterval(agent.interval);
+                agent.interval = null;
+            }
+
+            agent.state = targetState;
+            updateGlobalBorderGlow();
+
+            Object.keys(stateConfig).forEach(st => btn.classList.remove(`state-${st}`));
+            btn.classList.add(`state-${targetState}`);
+            statusText.textContent = stateConfig[targetState].text;
+            summaryEl.textContent = getRandomSummary(targetState);
+
+            syncMonitor(id);
+
+            if (targetState === 'idle') {
+                agent.progress = 0;
+                fillEl.style.height = '0%';
+                textEl.textContent = '0%';
+                syncMonitor(id);
+                agent.interval = setTimeout(() => { executeStateLoop(id, 'thinking'); }, 2000 + Math.random() * 2000);
+            } else if (targetState === 'completed') {
+                agent.progress = 100;
+                fillEl.style.height = '100%';
+                textEl.textContent = '100%';
+                syncMonitor(id);
+                agent.interval = setTimeout(() => { executeStateLoop(id, 'idle'); }, 2500);
+            } else if (targetState === 'error') {
+                fillEl.style.height = agent.progress + '%';
+                textEl.textContent = 'ERR';
+                syncMonitor(id);
+                agent.interval = setTimeout(() => { executeStateLoop(id, 'idle'); }, 2500);
+            } else if (targetState === 'waiting') {
+                fillEl.style.height = agent.progress + '%';
+                textEl.textContent = Math.floor(agent.progress) + '%';
+                syncMonitor(id);
+                agent.interval = setTimeout(() => { executeStateLoop(id, Math.random() > 0.3 ? 'thinking' : 'error'); }, 1500 + Math.random() * 1500);
+            } else if (targetState === 'thinking') {
+                agent.interval = setInterval(() => {
+                    const burst = Math.random() > 0.88 ? 4.5 : 1.2;
+                    agent.progress += (agent.baseSpeed + (Math.random() * 0.6 - 0.3)) * burst;
+
+                    if (agent.progress >= 100) {
+                        executeStateLoop(id, 'completed');
+                    } else {
+                        fillEl.style.height = agent.progress + '%';
+                        textEl.textContent = Math.floor(agent.progress) + '%';
+                        syncMonitor(id);
+
+                        const rand = Math.random();
+                        if (rand < 0.015) {
+                            executeStateLoop(id, 'waiting');
+                        } else if (rand > 0.988) {
+                            executeStateLoop(id, 'error');
+                        }
+                    }
+                }, 100);
+            }
+        }
+
+        // --- 6. Mechanical snaps for FST, MED, HGH Dial ---
+        const knob = document.getElementById('reasoningKnob');
+        const bezel = document.getElementById('knobBezel');
+        const tags = { fast: document.getElementById('tag-fast'), medium: document.getElementById('tag-medium'), high: document.getElementById('tag-high') };
+        const snapAngles = { fast: -45, medium: 0, high: 45 };
+
+        let isDraggingKnob = false;
+        let knobCenterX = 0;
+        let knobCenterY = 0;
+        let currentKnobLevel = 'medium';
+
+        function startKnobDrag(e) {
+            isDraggingKnob = true;
+            knob.classList.remove('snapping'); 
+            const rect = knob.getBoundingClientRect();
+            knobCenterX = rect.left + rect.width / 2;
+            knobCenterY = rect.top + rect.height / 2;
+            if (e.cancelable) e.preventDefault();
+        }
+
+        function handleKnobDrag(e) {
+            if (!isDraggingKnob) return;
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            
+            const dx = clientX - knobCenterX;
+            const dy = clientY - knobCenterY;
+            let angle = Math.atan2(dy, dx) * (180 / Math.PI) + 90;
+            if (angle > 180) angle -= 360; 
+
+            if (angle < -75) angle = -75;
+            if (angle > 75) angle = 75;
+
+            knob.style.transform = `rotate(${angle}deg)`;
+
+            let tempLevel = 'medium';
+            if (angle < -15) tempLevel = 'fast';
+            else if (angle > 15) tempLevel = 'high';
+
+            updateKnobVisuals(tempLevel);
+        }
+
+        function endKnobDrag() {
+            if (!isDraggingKnob) return;
+            isDraggingKnob = false;
+            
+            knob.classList.add('snapping'); 
+            
+            const transformText = knob.style.transform;
+            const match = transformText.match(/rotate\(([^deg)]+)/);
+            const currentAngle = match ? parseFloat(match[1]) : 0;
+
+            let finalLevel = 'medium';
+            if (currentAngle < -15) finalLevel = 'fast';
+            else if (currentAngle > 15) finalLevel = 'high';
+
+            snapToLevel(finalLevel);
+        }
+
+        function snapToLevel(level) {
+            currentKnobLevel = level;
+            knob.style.transform = `rotate(${snapAngles[level]}deg)`;
+            updateKnobVisuals(level);
+        }
+
+        function updateKnobVisuals(level) {
+            Object.keys(tags).forEach(lvl => tags[lvl].classList.toggle('active', lvl === level));
+            bezel.className = `knob-bezel glow-${level}`;
+        }
+
+        knob.addEventListener('click', (e) => {
+            if (isDraggingKnob) return;
+            knob.classList.add('snapping');
+            let nextLevel = 'medium';
+            if (currentKnobLevel === 'fast') nextLevel = 'medium';
+            else if (currentKnobLevel === 'medium') nextLevel = 'high';
+            else nextLevel = 'fast';
+            snapToLevel(nextLevel);
+        });
+
+        knob.addEventListener('mousedown', startKnobDrag);
+        window.addEventListener('mousemove', handleKnobDrag);
+        window.addEventListener('mouseup', endKnobDrag);
+        knob.addEventListener('touchstart', startKnobDrag, { passive: false });
+        window.addEventListener('touchmove', handleKnobDrag, { passive: false });
+        window.addEventListener('touchend', endKnobDrag);
+
+
+        // --- 7. AI model display 3s automatic model cycle telemetry ---
+        let autoCycleTimer = null;
+
+        function startModelAutoCycle() {
+            autoCycleTimer = setInterval(() => {
+                triggerModelRotation();
+            }, 3000);
+        }
+
+        function triggerModelRotation() {
+            const currentConfig = modelConfig[activeAgentId];
+            let nextIndex = 0;
+            
+            for (let i = 0; i < brandsPool.length; i++) {
+                if (brandsPool[i].name === currentConfig.name) {
+                    nextIndex = (i + 1) % brandsPool.length;
+                    break;
+                }
+            }
+            
+            modelConfig[activeAgentId] = { ...brandsPool[nextIndex] };
+            
+            const screen = document.getElementById('screenContent');
+            screen.classList.add('updating');
+            setTimeout(() => {
+                syncMonitor(activeAgentId);
+                screen.classList.remove('updating');
+            }, 150);
+        }
+
+        document.getElementById('modelPad').addEventListener('click', () => {
+            if (autoCycleTimer) {
+                clearInterval(autoCycleTimer);
+                autoCycleTimer = null;
+            }
+            triggerModelRotation();
+            setTimeout(() => {
+                if (!autoCycleTimer) {
+                    startModelAutoCycle();
+                }
+            }, 5000);
+        });
+
+
+        // --- 8. Simulated Button Presses on the Right (Sequentially cycles every 3s) ---
+        let simulatedPressTimer = null;
+        let simulatedIndex = 0;
+
+        function startSimulatedPressCycle() {
+            // Target the 5 white buttons on the right
+            const buttonsToPress = [
+                document.getElementById('btn-fork'),
+                document.getElementById('btn-accept'),
+                document.getElementById('btn-reject'),
+                document.getElementById('btn-newchat'),
+                document.getElementById('btn-send')
+            ];
+
+            simulatedPressTimer = setInterval(() => {
+                // Ensure any previous simulated press is cleared
+                buttonsToPress.forEach(btn => btn.classList.remove('simulated-press'));
+
+                const targetBtn = buttonsToPress[simulatedIndex];
+                if (targetBtn) {
+                    // Inject active simulated style
+                    targetBtn.classList.add('simulated-press');
+
+                    // Simulate release action after 400ms
+                    setTimeout(() => {
+                        targetBtn.classList.remove('simulated-press');
+                    }, 400);
+                }
+
+                simulatedIndex = (simulatedIndex + 1) % buttonsToPress.length;
+            }, 3000);
+        }
+
+
+        // --- 9. Joystick Automation ---
+        const joystickInner = document.getElementById('joystickKnob');
+        const dirLabels = {
+            up: document.querySelector('.dir-up'),
+            down: document.querySelector('.dir-down'),
+            left: document.querySelector('.dir-left'),
+            right: document.querySelector('.dir-right')
+        };
+
+        setInterval(() => {
+            if (Math.random() > 0.4) {
+                const actions = [
+                    { x: 0, y: -12, key: 'up' },
+                    { x: 0, y: 12, key: 'down' },
+                    { x: -12, y: 0, key: 'left' },
+                    { x: 12, y: 0, key: 'right' }
+                ];
+                const action = actions[Math.floor(Math.random() * actions.length)];
+                
+                Object.values(dirLabels).forEach(lbl => lbl.classList.remove('active'));
+                
+                joystickInner.style.transform = `translate(${action.x}px, ${action.y}px)`;
+                if (dirLabels[action.key]) {
+                    dirLabels[action.key].classList.add('active');
+                }
+                
+                setTimeout(() => {
+                    joystickInner.style.transform = 'translate(0px, 0px)';
+                    Object.values(dirLabels).forEach(lbl => lbl.classList.remove('active'));
+                }, 800);
+            }
+        }, 3200);
+
+        // --- 10. Voice wave animation ---
+        const voiceBtn = document.getElementById('btn-voice');
+        let voiceInterval;
+        voiceBtn.addEventListener('mousedown', () => {
+            voiceBtn.style.background = 'linear-gradient(135deg, #e0f2fe 0%, #bae6fd 100%)';
+            voiceInterval = setInterval(() => {
+                document.querySelectorAll('.wave-bar').forEach(bar => {
+                    bar.style.height = `${Math.floor(Math.random() * 11) + 3}px`;
+                });
+            }, 80);
+        });
+        window.addEventListener('mouseup', () => {
+            if (voiceInterval) { clearInterval(voiceInterval); voiceInterval = null; }
+            voiceBtn.style.background = '';
+            const wb = document.querySelectorAll('.wave-bar');
+            if(wb.length >= 3) { wb[0].style.height = '3px'; wb[1].style.height = '7px'; wb[2].style.height = '4px'; }
+        });
+
+        window.addEventListener('DOMContentLoaded', () => { initAgents(); });
+    </script>
+</body>
+</html>
