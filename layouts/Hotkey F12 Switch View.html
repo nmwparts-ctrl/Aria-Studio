@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>UHD Dashboard V5.4 - A527 Link (Flowing 3D Mechanical)</title>
+    <style>
+        :root {
+            --frame-w: 301mm;
+            --frame-h: 55mm;
+            --apple-blue: #007AFF;
+            --apple-pink: #FF2D55;
+            --neon-primary: #00f2ff;
+            --conn-status: #ff2d55; 
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; -webkit-font-smoothing: antialiased; }
+        
+        body, html {
+            width: 100vw; height: 100vh; 
+            background: transparent; /* 全局背景保持透明 */
+            display: flex; justify-content: center; align-items: center;
+            overflow: hidden; font-family: -apple-system, "SF Pro Display", "PingFang SC", sans-serif;
+        }
+        
+        .page-wrapper { 
+            position: absolute; 
+            width: var(--frame-w); 
+            height: var(--frame-h); 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            transition: opacity 0.4s ease; 
+        }
+        .hidden { display: none !important; opacity: 0; }
+        
+        /* 状态指示条 */
+        .sync-bar { 
+            position: absolute; 
+            top: 10px; 
+            right: 35px; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            z-index: 100; 
+            font-size: 10px; 
+            font-weight: 900; 
+            color: #94a3b8; 
+            letter-spacing: 1px; 
+        }
+        .status-dot { 
+            width: 8px; 
+            height: 8px; 
+            background: var(--conn-status); 
+            border-radius: 50%; 
+            transition: background 0.3s, box-shadow 0.3s; 
+            box-shadow: 0 0 4px var(--conn-status);
+        }
+
+        /* 控制台底壳（背景完全透明） */
+        .console-outer { 
+            width: 100%; 
+            height: 100%; 
+            background: transparent; 
+            position: relative; 
+            overflow: hidden; 
+            border-radius: 14px; 
+            border: 1px solid rgba(255, 255, 255, 0.05); 
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
+            transition: 0.5s; 
+        }
+        .glow-line { display: none !important; } 
+        
+        .inner-shield { 
+            position: absolute; 
+            inset: 2px; 
+            z-index: 2; 
+            background: transparent; 
+            border-radius: 12px; 
+        }
+        
+        .dashboard-grid { 
+            position: relative; 
+            z-index: 10; 
+            width: 100%; 
+            height: 100%; 
+            display: flex; 
+            justify-content: space-evenly; 
+            align-items: center; 
+            padding: 0 10px; 
+            gap: 12px; 
+        }
+        
+        /* --- 3D 悬浮卡片样式（半透明磨砂玻璃） --- */
+        .card { 
+            flex: 1; 
+            height: 80%; /* 留出底部 3D 投影位移行程 */
+            max-width: 28mm; 
+            border-radius: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            justify-content: center; 
+            position: relative;
+            cursor: pointer;
+            
+            /* 白色半透明磨砂玻璃效果 */
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.12) 0%, rgba(255, 255, 255, 0.03) 100%);
+            border: 1px solid rgba(255, 255, 255, 0.12);
+            border-top: 1px solid rgba(255, 255, 255, 0.25); /* 顶部高光反射 */
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            
+            /* 3D 台阶硬核阴影 */
+            box-shadow: 
+                0 4px 0 var(--shadow-color, rgba(255, 255, 255, 0.2)), 
+                0 6px 10px rgba(0, 0, 0, 0.35);
+            
+            transform: translateY(-2px);
+            transition: transform 0.15s cubic-bezier(0.25, 1.5, 0.5, 1), box-shadow 0.15s ease, filter 0.1s ease;
+        }
+
+        /* --- 键位台阶下方的流动呼吸霓虹光晕效果 --- */
+        .card::after {
+            content: '';
+            position: absolute;
+            bottom: -5px; /* 处于3D实体台阶底部边缘外测 */
+            left: 10%;
+            width: 80%;
+            height: 5px;
+            /* 左右两侧由该按键特定颜色主导，中间混入高光白色以实现流动光彩 */
+            background: linear-gradient(90deg, var(--shadow-color, #94a3b8) 0%, #ffffff 50%, var(--shadow-color, #94a3b8) 100%);
+            background-size: 200% auto;
+            border-radius: 4px;
+            filter: blur(5px);
+            z-index: -1;
+            opacity: 0.7;
+            pointer-events: none;
+            /* 绑定横向背景滚动（流动）与呼吸（缩放和模糊）动画 */
+            animation: flow-breath 4s infinite linear;
+        }
+        
+        .card:hover {
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.06) 100%);
+            border-color: rgba(255, 255, 255, 0.18);
+        }
+        
+        /* 激活按下状态（按键物理下压，将底部流动的轴灯压扁/遮挡，阴影大幅收窄） */
+        .card.is-active { 
+            transform: translateY(2px);
+            box-shadow: 
+                0 0px 0 var(--shadow-color, rgba(255, 255, 255, 0.2)), 
+                0 1px 3px rgba(0, 0, 0, 0.2);
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+            border-color: rgba(255, 255, 255, 0.08);
+        }
+        .card.is-active::after {
+            bottom: -2px;
+            opacity: 0.3; /* 下压时流光受到挤压，可见度降低 */
+            filter: blur(3px);
+            transform: scaleX(0.9);
+        }
+        
+        /* 键帽流动与呼吸的核心动画配置 */
+        @keyframes flow-breath {
+            0% {
+                background-position: 0% center;
+                opacity: 0.5;
+                filter: blur(4px) brightness(1);
+            }
+            50% {
+                /* 呼吸顶点：光晕向外漫反射变宽，不透明度最高，亮度微升 */
+                opacity: 0.95;
+                filter: blur(8px) brightness(1.2);
+            }
+            100% {
+                background-position: 200% center; /* 滚动背景实现连续横向流动效果 */
+                opacity: 0.5;
+                filter: blur(4px) brightness(1);
+            }
+        }
+        
+        .sys-icon { 
+            height: 40px; 
+            margin-bottom: 4px; 
+            transition: 0.2s; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            filter: drop-shadow(0 2px 4px rgba(0,0,0,0.3));
+        }
+        .sys-icon svg { width: 14px; height: 14px; fill: currentColor; }
+        
+        .card-label { 
+            font-size: 8.5px; 
+            font-weight: 800; 
+            color: #ffffff; 
+            margin-top: 6px; 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px; 
+            width: 90%;
+            text-align: center;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8); 
+        }
+        .is-us-apps .card-label { 
+            font-size: 11px; 
+            font-weight: 700; 
+            text-transform: none; 
+            margin-top: 6px; 
+        }
+
+        .os-tag { 
+            position: absolute; 
+            top: 6px; 
+            right: 6px; 
+            width: 12px; 
+            height: 12px; 
+            opacity: 0.6; 
+            color: #cbd5e1; 
+        }
+        
+        kbd { 
+            font-family: -apple-system, sans-serif; 
+            font-size: 8.5px; 
+            font-weight: 700;
+            min-width: 28px; 
+            height: 16px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%); 
+            color: #f1f5f9; 
+            border-radius: 3.5px; 
+            border: 1px solid #334155; 
+            border-bottom: 2px solid #020617; 
+            box-shadow: 0 1px 2px rgba(0,0,0,0.3);
+        }
+        .is-us-apps kbd { display: none; }
+    </style>
+</head>
+<body>
+
+    <!-- 顶端状态指示 -->
+    <div class="sync-bar">
+        <div id="statusDot" class="status-dot"></div>
+        <span id="statusText">WAITING_LINK...</span>
+    </div>
+
+    <!-- 主面板 -->
+    <div id="page-console" class="page-wrapper">
+        <div class="console-outer" id="consoleOuter">
+            <div class="inner-shield"></div>
+            <main class="dashboard-grid" id="mainGrid"></main>
+        </div>
+    </div>
+<script>
+        let currentPage = 3;
+        const validPages = [3, 4, 5, 6, 7, 8];
+        const BRIDGE_URL = `http://127.0.0.1:8080`;
+
+        async function sendToBridge(payload) {
+            try {
+                await fetch(`${BRIDGE_URL}/push`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (e) { /* 未连接通信网桥 */ }
+        }
+
+        function updateUIStatus(online) {
+            const s = document.getElementById('statusDot');
+            const t = document.getElementById('statusText');
+            if (online) {
+                if(s) { 
+                    s.style.background = '#00ff88'; 
+                    s.style.boxShadow = '0 0 8px #00ff88';
+                }
+                if(t) t.innerText = 'LINK_ACTIVE';
+            } else {
+                if(s) { 
+                    s.style.background = '#ff2d55'; 
+                    s.style.boxShadow = '0 0 8px #ff2d55';
+                }
+                if(t) t.innerText = 'LINK_LOST';
+            }
+        }
+
+        async function checkStatus() {
+            try {
+                const response = await fetch(`${BRIDGE_URL}/get_data`);
+                if (response.ok) {
+                    const data = await response.json();
+                    updateUIStatus(data.online);
+                } else {
+                    updateUIStatus(false);
+                }
+            } catch (e) {
+                updateUIStatus(false);
+            }
+        }
+
+        // Windows 专属 Emoji
+        const winEmojis = {
+            'Lock': '🔒', 'Clipbd': '📋', 'Search': '🔍', 'Files': '📂',
+            'Term': '💻', 'Desktop': '🖥️', 'Kill': '❌', 'Set': '⚙️',
+            'Snap': '📸', 'Emoji': '😀', 'Proj': '📽️', 'Run': '🚀',
+            'Hide': '🫣', 'Hist': '⏳', 'Dock': '📥', 'Peek': '👁️',
+            'Left': '⬅️', 'Right': '➡️', 'Space': '🌌', 'Quit': '🚪'
+        };
+
+        // macOS 专属 Emoji
+        const macEmojis = {
+            'Lock': '🔐', 'Clipbd': '📑', 'Search': '🔎', 'Files': '📁',
+            'Term': '📟', 'Desktop': '🪟', 'Kill': '🚫', 'Set': '🛠️',
+            'Snap': '📷', 'Emoji': '🤪', 'Proj': '📡', 'Run': '🧭',
+            'Hide': '🌫️', 'Hist': '🕒', 'Dock': '⚓', 'Peek': '👓',
+            'Left': '◀️', 'Right': '▶️', 'Space': '🪐', 'Quit': '💨'
+        };
+
+        // 应用专属 Emoji
+        const appEmojis = {
+            'Google': '🌐', 'YouTube': '📺', 'Amazon': '📦', 'Netflix': '🎬',
+            'Meta': '👥', 'X / Twitter': '🐦', 'ChatGPT': '🤖', 'Reddit': '👽',
+            'LinkedIn': '💼', 'GitHub': '🐙', 'Discord': '💬', 'Spotify': '🎵',
+            'Tesla': '⚡', 'Apple': '🍏', 'Disney+': '🏰', 'Twitch': '🎮',
+            'Uber': '🚗', 'eBay': '🛍️', 'Zoom': '📹', 'Pinterest': '📌'
+        };
+        
+        // 快捷键/应用全局数据：为所有键位配置专属的高饱和轴底色彩配置 (c 字段)
+        const shortcuts = [
+            // Page 3 (Win 1)
+            { n: 'Lock', w: ['Win','L'], m: ['⌥⌘','Q'], c: '#FF3B30' }, 
+            { n: 'Clipbd', w: ['Win','V'], m: ['⌘','V'], c: '#007AFF' }, 
+            { n: 'Search', w: ['Win','S'], m: ['⌘','Space'], c: '#34C759' }, 
+            { n: 'Files', w: ['Win','E'], m: ['⌘','N'], c: '#FFCC00' }, 
+            { n: 'Term', w: ['Win','X'], m: ['⌘','`'], c: '#5856D6' }, 
+            { n: 'Desktop', w: ['Win','D'], m: ['⌘','F3'], c: '#AF52DE' }, 
+            { n: 'Kill', w: ['Ctl','Esc'], m: ['⌘⌥','Esc'], c: '#FF9500' }, 
+            { n: 'Set', w: ['Win','I'], m: ['⌘',','], c: '#8E8E93' }, 
+            { n: 'Snap', w: ['Win','⇧S'], m: ['⌘⇧','4'], c: '#5AC8FA' }, 
+            { n: 'Emoji', w: ['Win','.'], m: ['⌘⌃','Space'], c: '#FF2D55' },
+
+            // Page 4 (Win 2)
+            { n: 'Proj', w: ['Win','P'], m: ['⌘','F1'], c: '#00C7BE' }, 
+            { n: 'Run', w: ['Win','R'], m: ['⌘','Space'], c: '#FF453A' }, 
+            { n: 'Hide', w: ['Win','M'], m: ['⌘','M'], c: '#BF5AF2' }, 
+            { n: 'Hist', w: ['Win','Tab'], m: ['⌘','†?'], c: '#FF9F0A' }, 
+            { n: 'Dock', w: ['Win','T'], m: ['⌘⌥','D'], c: '#30D158' }, 
+            { n: 'Peek', w: ['Win',','], m: ['⌘','Ref'], c: '#64D2FF' }, 
+            { n: 'Left', w: ['Win','←'], m: ['⌘⌥','←'], c: '#FFD60A' }, 
+            { n: 'Right', w: ['Win','→'], m: ['⌘⌥','→'], c: '#FF375F' }, 
+            { n: 'Space', w: ['Win','^D'], m: ['⌘⌃','D'], c: '#74c0fc' }, 
+            { n: 'Quit', w: ['Alt','F4'], m: ['⌘','Q'], c: '#fa5252' },
+
+            // Page 5 (Mac 1)
+            { n: 'Lock', w: ['Win','L'], m: ['⌥⌘','Q'], c: '#FF3B30' }, 
+            { n: 'Clipbd', w: ['Win','V'], m: ['⌘','V'], c: '#007AFF' }, 
+            { n: 'Search', w: ['Win','S'], m: ['⌘','Space'], c: '#34C759' }, 
+            { n: 'Files', w: ['Win','E'], m: ['⌘','N'], c: '#FFCC00' }, 
+            { n: 'Term', w: ['Win','X'], m: ['⌘','`'], c: '#5856D6' }, 
+            { n: 'Desktop', w: ['Win','D'], m: ['⌘','F3'], c: '#AF52DE' }, 
+            { n: 'Kill', w: ['Ctl','Esc'], m: ['⌘⌥','Esc'], c: '#FF9500' }, 
+            { n: 'Set', w: ['Win','I'], m: ['⌘',','], c: '#8E8E93' }, 
+            { n: 'Snap', w: ['Win','⇧S'], m: ['⌘⇧','4'], c: '#5AC8FA' }, 
+            { n: 'Emoji', w: ['Win','.'], m: ['⌘⌃','Space'], c: '#FF2D55' },
+
+            // Page 6 (Mac 2)
+            { n: 'Proj', w: ['Win','P'], m: ['⌘','F1'], c: '#00C7BE' }, 
+            { n: 'Run', w: ['Win','R'], m: ['⌘','Space'], c: '#FF453A' }, 
+            { n: 'Hide', w: ['Win','M'], m: ['⌘','M'], c: '#BF5AF2' }, 
+            { n: 'Hist', w: ['Win','Tab'], m: ['⌘','†?'], c: '#FF9F0A' }, 
+            { n: 'Dock', w: ['Win','T'], m: ['⌘⌥','D'], c: '#30D158' }, 
+            { n: 'Peek', w: ['Win',','], m: ['⌘','Ref'], c: '#64D2FF' }, 
+            { n: 'Left', w: ['Win','←'], m: ['⌘⌥','←'], c: '#FFD60A' }, 
+            { n: 'Right', w: ['Win','→'], m: ['⌘⌥','→'], c: '#FF375F' }, 
+            { n: 'Space', w: ['Win','^D'], m: ['⌘⌃','D'], c: '#74c0fc' }, 
+            { n: 'Quit', w: ['Alt','F4'], m: ['⌘','Q'], c: '#fa5252' },
+
+            // Page 7 (US Apps 1)
+            { n: 'Google', c: '#4285F4', w: ['Win','R'] }, 
+            { n: 'YouTube', c: '#FF0000', w: ['Win','1'] }, 
+            { n: 'Amazon', c: '#FF9900', w: [] }, 
+            { n: 'Netflix', c: '#E50914', w: [] }, 
+            { n: 'Meta', c: '#0668E1', w: [] }, 
+            { n: 'X / Twitter', c: '#e2e8f0', w: [] }, 
+            { n: 'ChatGPT', c: '#10a37f', w: [] }, 
+            { n: 'Reddit', c: '#FF4500', w: [] }, 
+            { n: 'LinkedIn', c: '#0A66C2', w: [] }, 
+            { n: 'GitHub', c: '#6e5494', w: [] },
+
+            // Page 8 (US Apps 2)
+            { n: 'Discord', c: '#5865F2', w: [] }, 
+            { n: 'Spotify', c: '#1DB954', w: [] }, 
+            { n: 'Tesla', c: '#E81828', w: [] }, 
+            { n: 'Apple', c: '#A2AAAD', w: [] }, 
+            { n: 'Disney+', c: '#006E99', w: [] }, 
+            { n: 'Twitch', c: '#9146FF', w: [] }, 
+            { n: 'Uber', c: '#ffffff', w: [] }, 
+            { n: 'eBay', c: '#E53238', w: [] }, 
+            { n: 'Zoom', c: '#2D8CFF', w: [] }, 
+            { n: 'Pinterest', c: '#E60023', w: [] }
+        ];
+
+        const logos = { 
+            win: `<svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M485.6 150.9L161.9 203.3v277.6h323.7zM161.9 519v277.6l323.7 52.4V519zM538.1 853.1L901.6 928V519H538.1zM901.6 72V481.1H538.1V126.8z"></path></svg>`, 
+            apple: `<svg viewBox="0 0 1024 1024" fill="currentColor"><path d="M721.728 518.784c1.6 114.88 100.224 153.344 101.888 154.048-1.088 3.584-15.872 54.464-52.096 107.456-31.296 45.888-63.744 91.52-115.136 92.48-50.496 0.96-66.752-29.824-124.416-29.824-57.664 0-75.648 28.864-124.416 30.72-48.832 1.856-85.312-49.344-116.736-95.36-64.256-93.952-113.216-265.664-47.36-379.84 32.704-56.512 90.944-92.48 154.24-93.504 48.064-0.96 93.312 32.32 122.688 32.32 29.376 0 83.392-38.336 140.48-32.32 24.064 1.024 91.52 9.664 135.04 73.28-3.52 2.176-80.832 46.912-79.168 140.544zM593.664 221.728c25.92-31.296 43.328-74.88 38.528-118.464-37.44 1.536-82.688 24.96-109.504 56.256-24.064 27.84-45.184 72.32-39.424 114.752 41.664 3.2 84.48-21.248 110.4-52.544z"></path></svg>` 
+        };
+
+        function render() {
+            const isMac = (currentPage === 5 || currentPage === 6);
+            const isUSApps = (currentPage === 7 || currentPage === 8);
+            
+            const subIdx = currentPage - 3;
+            const items = shortcuts.slice(subIdx * 10, subIdx * 10 + 10);
+            
+            const outer = document.getElementById('consoleOuter');
+            if (outer) {
+                outer.className = `console-outer ${isMac ? 'is-mac-mode' : ''} ${isUSApps ? 'is-us-apps' : ''}`;
+                let activeColorValue = isUSApps ? '--apple-pink' : (isMac ? '--apple-blue' : '--neon-primary');
+                outer.style.setProperty('--active-color', `var(${activeColorValue})`);
+            }
+            
+            const mainGrid = document.getElementById('mainGrid');
+            if (!mainGrid) return;
+
+            mainGrid.innerHTML = items.map((s, i) => {
+                let osTag = ''; 
+                if (!isUSApps) {
+                    osTag = `<div class="os-tag">${isMac ? logos.apple : logos.win}</div>`;
+                }
+                
+                let emojiIcon = '❓';
+                if (isUSApps) {
+                    emojiIcon = appEmojis[s.n] || '❓';
+                } else if (isMac) {
+                    emojiIcon = macEmojis[s.n] || '❓';
+                } else {
+                    emojiIcon = winEmojis[s.n] || '❓';
+                }
+                
+                const iconContent = `<div style="font-size: 38px; line-height: 1;">${emojiIcon}</div>`;
+                
+                // 将 shortcuts 中的 c 配色作为 3D 厚度、台阶阴影以及下方霓虹光晕的控制颜色
+                const shadowColor = s.c || 'rgba(255, 255, 255, 0.2)'; 
+                
+                let key1 = '';
+                let key2 = '';
+                if (!isUSApps) {
+                    const osKeys = isMac ? s.m : s.w;
+                    if (osKeys && osKeys.length > 0) {
+                        key1 = osKeys[0] || '';
+                        key2 = osKeys[1] || '';
+                    }
+                }
+
+                const keyMarkup1 = key1 ? `<kbd>${key1}</kbd>` : '';
+                const keyMarkup2 = key2 ? `<kbd>${key2}</kbd>` : '';
+                const keysContainer = (!isUSApps && (key1 || key2)) 
+                    ? `<div style="display:flex; gap:4px">${keyMarkup1}${keyMarkup2}</div>` 
+                    : '';
+                
+                return `<div class="card" id="slot-${i}" style="--shadow-color: ${shadowColor}">
+                    ${osTag}
+                    <div class="sys-icon">${iconContent}</div>
+                    ${keysContainer}
+                    <div class="card-label">${s.n}</div>
+                </div>`;
+            }).join('');
+        }
+
+        window.addEventListener('keydown', (e) => {
+            const keyCode = e.keyCode;
+            
+            // F1 (112) ~ F10 (121) 触发卡片下沉交互
+            if (keyCode >= 112 && keyCode <= 121) {
+                e.preventDefault(); 
+                const moduleIdx = keyCode - 112; 
+                const slot = document.getElementById(`slot-${moduleIdx}`);
+                
+                const subIdx = currentPage - 3;
+                let targetData = shortcuts[subIdx * 10 + moduleIdx];
+                
+                if (slot) { 
+                    slot.classList.add('is-active'); 
+                    setTimeout(() => slot.classList.remove('is-active'), 400); 
+                }
+                
+                sendToBridge({ 
+                    type: "KEY_EVENT", 
+                    page: currentPage, 
+                    index: moduleIdx, 
+                    data: targetData, 
+                    os: (currentPage === 5 || currentPage === 6) ? "mac" : "win" 
+                });
+            }
+            
+            // F12 (123) 切换页面渲染
+            if (keyCode === 123) {
+                e.preventDefault();
+                let nextIdx = validPages.indexOf(currentPage) + 1;
+                if (nextIdx >= validPages.length) nextIdx = 0;
+                currentPage = validPages[nextIdx];
+                
+                render();
+                sendToBridge({ type: "PAGE_SWITCH", newPage: currentPage });
+            }
+        });
+
+        // 首次加载初始化渲染
+        window.addEventListener('DOMContentLoaded', () => {
+            render();
+            setInterval(checkStatus, 1000);
+        });
+    </script>
+</body>
+</html>
