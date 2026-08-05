@@ -1,8 +1,8 @@
 <div align="center">
 
-# 💎 Aria Studio 
+# 💎 Aria Studio
 
-**面向带屏赛博智能键盘与多模态 AI 硬件的全能控制中心 & 驱动平台**
+**All‑in‑One Control Center & Driver Platform for Cyber Smart Keyboards with Displays and Multimodal AI Hardware**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Python Version](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://www.python.org/)
@@ -15,45 +15,50 @@
 
 ---
 
-## 📖 项目简介 (Introduction)
+## 📖 Introduction
 
-**Aria Studio** 是一款专为超宽屏/双屏智能磁轴键盘及边缘计算设备（如 A527 主板）定制的上位机驱动与 AI 交互控制台。
+**Aria Studio** is a dedicated host driver and AI interaction console designed for ultra‑wide / dual‑screen smart magnetic‑switch keyboards and edge computing devices (such as the A527 board).
 
-项目结合了桌面端 PyQt/Tkinter 图形化控制台与嵌入式 Flask 边缘服务，支持 **跨设备 HTML 实时推送与渲染预览**、**系统硬件遥测**、**多模态 AI 模型交互（Gemini & DeepSeek）**、**超低延迟视频传输** 以及 **快捷按键与 URL 联动映射**。
-
----
-
-## ✨ 核心特性 (Features)
-
-* 🖥️ **DS Mini Viewport 持久化预览与渲染**：
-  * 支持 1920x350 真实比例的 UI 实时快照渲染与本地持久化缓存。
-  * 内置文本防卡死智能保护（对超长 Base64 编码与长文本数据自动折叠与截断）。
-* 🤖 **双 Agent / 多 AI 引擎桥接**：
-  * 内置 Gemini 1.5 Flash 与 DeepSeek V4 闪电模型 API 集中路由。
-  * 支持语音上传 (`upload_voice`) 与实时 AI 文本回复/歌词同步显示。
-* 📈 **赛博朋克极客遥测 (Telemetry HUD)**：
-  * 50ms 阻尼高频 ECG 心电示波器与呼吸 LED 动态渲染 Canvas。
-  * 实时抓取 PC 端的 CPU、RAM 占用及网络状态，并在终端硬件显示屏上高频同步。
-* 🌐 **HTML 自由编写与无线推送**：
-  * 内置多模板 HTML/CSS 编辑器，支持一键发送更新终端屏幕页面。
-  * 智能剪贴板大代码拦截保护与自动备份机制。
-* 🎬 **多媒体与智能快捷键联动**：
-  * 视频/动态背景无线传输与覆盖功能。
-  * 嵌入式全局按键与应用联动（如自动匹配打开 Google、YouTube、Discord 等页面）。
-* 📂 **多功能 HTML 页面库与动态切换 (Multi-HTML Layout Engine)**：
-  * 支持自定义上传与保存无限个 HTML 功能文件（如游戏数据仪表盘、系统监测、AI 对话面板等）。
-  * 支持一键切换当前硬件屏显示的 HTML 应用，无需重启设备即可秒级热重载。
+The project combines a desktop PyQt/Tkinter graphical console with an embedded Flask edge service, supporting **cross‑device HTML real‑time push and render preview**, **system hardware telemetry**, **multimodal AI model interaction (Gemini & DeepSeek)**, **ultra‑low latency video transmission**, and **shortcut key & URL mapping**.
 
 ---
 
-## 🏗️ 架构说明 (Architecture)
+## ✨ Key Features
+
+* 🖥️ **DS Mini Viewport Persistent Preview & Rendering**
+  * Real‑time snapshot rendering of UI at a true 1920×350 aspect ratio with local persistent caching.
+  * Built‑in intelligent anti‑freeze protection (auto‑collapses and truncates oversized Base64 data and long text).
+
+* 🤖 **Dual‑Agent / Multi‑AI Engine Bridge**
+  * Centralised API routing for Gemini 1.5 Flash and DeepSeek V4 Lightning models.
+  * Supports voice upload (`upload_voice`) and real‑time AI reply / lyrics sync display.
+
+* 📈 **Cyberpunk Geek Telemetry (HUD)**
+  * 50ms damped high‑frequency ECG oscilloscope with breathing LED dynamic rendering on Canvas.
+  * Real‑time capture of PC CPU, RAM usage and network status, synchronised to the terminal display.
+
+* 🌐 **HTML Free Editing & Wireless Push**
+  * Built‑in multi‑template HTML/CSS editor with one‑click push to update the terminal screen.
+  * Smart clipboard large‑code interception protection and auto‑backup mechanism.
+
+* 🎬 **Multimedia & Smart Shortcut Linkage**
+  * Wireless video/dynamic background transmission and overwrite.
+  * Embedded global key‑to‑app mapping (e.g., automatically opens Google, YouTube, Discord, etc.).
+
+* 📂 **Multi‑Functional HTML Page Library & Dynamic Switching**
+  * Upload and save an unlimited number of custom HTML function files (e.g., game dashboards, system monitors, AI chat panels).
+  * One‑click switch the current HTML app displayed on the hardware screen – hot‑reload in seconds without restarting the device.
+
+---
+
+## 🏗️ Architecture
 
 ```text
 ┌─────────────────────────┐               HTTP / JSON (Port 8080)             ┌────────────────────────┐
-│   Aria Studio 上位机    │  ───────────────────────────────────────────────► │   A527 硬件终端服务端  │
+│   Aria Studio Host      │  ───────────────────────────────────────────────► │   A527 Hardware Server │
 │   (client/app.py)       │  ◄─────────────────────────────────────────────── │   (server/a527_server.py)│
 └───────────┬─────────────┘                                                   └───────────┬────────────┘
             │                                                                             │
-            ├─► 渲染 1920x350 界面预览                                                      ├─► 部署嵌入式 HTML UI (index.html)
-            ├─► 收集 CPU/RAM 遥测数据                                                        ├─► 路由 Gemini / DeepSeek API
-            └─► 运行系统托盘 (pystray)                                                        └─► 托管视频资产与语音播放
+            ├─► Render 1920×350 interface preview                                        ├─► Deploy embedded HTML UI (index.html)
+            ├─► Collect CPU/RAM telemetry data                                           ├─► Route Gemini / DeepSeek APIs
+            └─► Run system tray (pystray)                                                └─► Host video assets and voice playback
