@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>A527 Engine Telemetry // Temp & Freq</title>
+    <style>
+        :root {
+            /* Apple 霓虹 UI 色系 */
+            --apple-blue: #0ea5e9;
+            --apple-purple: #a855f7;
+            --apple-orange: #f97316; /* 温度使用暖橙色 */
+            --apple-cyan: #06b6d4;   /* 频率使用科技青色 */
+            --apple-green: #22c55e;
+            --apple-red: #ef4444;
+            
+            /* 深暗色半透明毛玻璃 */
+            --glass-bg: rgba(10, 10, 15, 0.72);
+            --glass-border: rgba(255, 255, 255, 0.05);
+            --glass-shine: linear-gradient(135deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 60%);
+            --text-main: #f8fafc;
+            --text-dim: #475569;
+        }
+
+        /* ==================== 1. 视口刚性防溢出硬锁定 ==================== */
+        * { 
+            margin: 0 !important; 
+            padding: 0; 
+            box-sizing: border-box; 
+            -webkit-user-select: none;
+            user-select: none;
+        }
+
+        html, body {
+            width: 100vw; 
+            height: 100vh;
+            overflow: hidden !important; 
+            background: #020204;
+            background-image: radial-gradient(circle at 50% -50%, rgba(14, 165, 233, 0.06) 0%, transparent 70%);
+            color: var(--text-main);
+            font-family: -apple-system, "SF Pro Display", "SF Mono", monospace;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .main-stage {
+            width: 100vw;
+            height: 100vh;
+            display: flex; 
+            flex-direction: column;
+            padding: 12px 20px;
+            justify-content: space-between;
+            box-sizing: border-box;
+        }
+
+        .header {
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            flex-shrink: 0;
+            height: 16px;
+            padding: 0 4px;
+        }
+        .header-title { 
+            font-size: 11px; 
+            font-weight: 700; 
+            letter-spacing: 2px; 
+            color: var(--text-dim); 
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .uptime { 
+            font-variant-numeric: tabular-nums; 
+            font-size: 11px; 
+            color: var(--text-dim); 
+            font-family: monospace;
+            white-space: nowrap;
+        }
+
+        /* ==================== 2. 弹性多栏栅格系统 ==================== */
+        .dashboard-grid {
+            flex: 1; 
+            display: grid;
+            grid-template-columns: 1fr 1fr 1.5fr 1fr 1fr; 
+            gap: 14px;
+            min-height: 0; 
+            margin-top: 10px !important;
+            margin-bottom: 10px !important;
+        }
+
+        .glass-card {
+            background: var(--glass-bg);
+            background-image: var(--glass-shine);
+            backdrop-filter: blur(35px) saturate(160%);
+            -webkit-backdrop-filter: blur(35px) saturate(160%);
+            border-radius: 16px; 
+            border: 1px solid var(--glass-border);
+            padding: 10px 12px; 
+            display: flex; 
+            flex-direction: column;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.05), 0 12px 24px rgba(0, 0, 0, 0.6);
+            overflow: hidden;
+            min-height: 0; 
+            min-width: 0;
+        }
+
+        /* 文本单行熔断保护 */
+        .label { 
+            font-size: 10px; 
+            font-weight: 700; 
+            color: var(--text-dim); 
+            text-transform: uppercase; 
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            text-align: center;
+            flex-shrink: 0;
+        }
+
+        .chart-box {
+            position: relative; 
+            width: 100%; 
+            flex: 1; 
+            min-height: 0; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center;
+        }
+
+        .ring-svg { 
+            max-width: 100%;
+            max-height: 100%; 
+            aspect-ratio: 1 / 1;
+            transform: rotate(-90deg); 
+        }
+        .ring-bg { 
+            fill: none; 
+            stroke: rgba(255, 255, 255, 0.02); 
+            stroke-width: 7px; 
+        }
+        .ring-path {
+            fill: none; 
+            stroke-width: 7px; 
+            stroke-linecap: round;
+            stroke-dasharray: 251.2; 
+            stroke-dashoffset: 251.2;
+            transition: stroke-dashoffset 0.6s cubic-bezier(0.1, 0.8, 0.2, 1);
+        }
+
+        .chart-value { 
+            position: absolute; 
+            font-size: 21px; 
+            font-weight: 700; 
+            font-family: monospace;
+            color: #ffffff;
+            text-shadow: 0 2px 8px rgba(0,0,0,0.8);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        /* 中心 Node 模块安全沙箱 */
+        .node-info { 
+            background: rgba(15, 20, 30, 0.85); 
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            justify-content: center;
+        }
+        .status-badge-row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            flex-shrink: 0;
+        }
+        .status-light {
+            width: 7px; 
+            height: 7px; 
+            border-radius: 50%;
+            background: var(--apple-red); 
+            box-shadow: 0 0 10px var(--apple-red);
+            transition: all 0.4s ease;
+            flex-shrink: 0;
+        }
+        .online .status-light { 
+            background: var(--apple-green); 
+            box-shadow: 0 0 12px var(--apple-green), 0 0 4px var(--apple-green); 
+        }
+        #status-txt {
+            font-size: 10px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        
+        .ip-val { 
+            font-size: clamp(20px, 2.5vw, 36px); 
+            font-weight: 800; 
+            letter-spacing: -1px; 
+            color: #ffffff;
+            font-family: monospace;
+            text-shadow: 0 4px 12px rgba(0,0,0,0.9);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            width: 100%;
+            text-align: center;
+            margin: 6px 0 !important;
+        }
+
+        /* 页脚流水状态栏 */
+        .footer { 
+            flex-shrink: 0;
+            height: 16px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        .progress-bar { 
+            height: 3px; 
+            background: rgba(255, 255, 255, 0.03); 
+            border-radius: 1.5px; 
+            overflow: hidden; 
+        }
+        #fill { 
+            width: 0%; 
+            height: 100%; 
+            background: linear-gradient(90deg, var(--apple-blue), #ffffff); 
+            box-shadow: 0 0 6px var(--apple-blue);
+            transition: width 0.4s ease; 
+        }
+        
+        .footer-text-row {
+            display: flex; 
+            justify-content: space-between; 
+            font-size: 10px; 
+            color: var(--text-dim);
+            font-family: monospace;
+            white-space: nowrap;
+        }
+        .footer-text-row span {
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="main-stage">
+        <div class="header">
+            <div class="header-title">DS Pixel Key ADVANCED TELEMETRY // CORE MONITOR</div>
+            <div class="uptime" id="uptime">UPTIME: 00:00:00</div>
+        </div>
+
+        <div class="dashboard-grid">
+            <div class="glass-card">
+                <div class="label">CPU Load</div>
+                <div class="chart-box">
+                    <svg class="ring-svg" viewBox="0 0 100 100">
+                        <circle class="ring-bg" cx="50" cy="50" r="40"></circle>
+                        <circle id="cpu-ring" class="ring-path" cx="50" cy="50" r="40" stroke="var(--apple-blue)"></circle>
+                    </svg>
+                    <div class="chart-value"><span id="v-cpu">0</span>%</div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="label">RAM Usage</div>
+                <div class="chart-box">
+                    <svg class="ring-svg" viewBox="0 0 100 100">
+                        <circle class="ring-bg" cx="50" cy="50" r="40"></circle>
+                        <circle id="mem-ring" class="ring-path" cx="50" cy="50" r="40" stroke="var(--apple-purple)"></circle>
+                    </svg>
+                    <div class="chart-value"><span id="v-mem">0</span>%</div>
+                </div>
+            </div>
+
+            <div id="status-container" class="glass-card node-info">
+                <div class="status-badge-row">
+                    <div class="status-light"></div>
+                    <div id="status-txt" style="color: var(--text-dim);">OFFLINE</div>
+                </div>
+                <div class="ip-val" id="v-ip">0.0.0.0</div>
+                <div class="label">Primary Node ID</div>
+            </div>
+
+            <div class="glass-card">
+                <div class="label">CPU Temp</div>
+                <div class="chart-box">
+                    <svg class="ring-svg" viewBox="0 0 100 100">
+                        <circle class="ring-bg" cx="50" cy="50" r="40"></circle>
+                        <circle id="temp-ring" class="ring-path" cx="50" cy="50" r="40" stroke="var(--apple-orange)"></circle>
+                    </svg>
+                    <div class="chart-value"><span id="v-temp">0</span><small style="font-size: 11px; margin-left:1px;">°C</small></div>
+                </div>
+            </div>
+
+            <div class="glass-card">
+                <div class="label">CPU Freq</div>
+                <div class="chart-box">
+                    <svg class="ring-svg" viewBox="0 0 100 100">
+                        <circle class="ring-bg" cx="50" cy="50" r="40"></circle>
+                        <circle id="freq-ring" class="ring-path" cx="50" cy="50" r="40" stroke="var(--apple-cyan)"></circle>
+                    </svg>
+                    <div class="chart-value" style="font-size: 17px;"><span id="v-freq">0.0</span><small style="font-size: 9px; color:var(--text-dim); margin-left:1px;">GHz</small></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <div class="progress-bar"><div id="fill"></div></div>
+            <div class="footer-text-row">
+                <span id="log">AWAITING SYSTEM PACKETS...</span>
+                <span>SECURE REST API v2.0 // NODE CTRL</span>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const host = window.location.hostname || "127.0.0.1";
+        const port = "8080";
+        const ringLen = 2 * Math.PI * 40;
+
+        // 清洗输入数据，强行过滤掉单位字符得到纯浮点数
+        function cleanValue(rawVal) {
+            if (rawVal === undefined || rawVal === null) return 0;
+            let str = String(rawVal).trim();
+            let cleaned = str.replace(/[^0-9.]/g, '');
+            return parseFloat(cleaned) || 0;
+        }
+
+        // 统一渲染引擎
+        function update(id, val, mode = 'percent') {
+            const ring = document.getElementById(id + '-ring');
+            const text = document.getElementById('v-' + id);
+            if (!ring || !text) return;
+            
+            let num = cleanValue(val);
+            let percent = 0;
+
+            if (mode === 'temp') {
+                // 温度标尺：以 100°C 为 100% 满格
+                percent = Math.min(Math.max(num, 0), 100);
+                text.innerText = Math.floor(num);
+            } else if (mode === 'freq') {
+                // 频率标尺：假设后端传来的是 GHz (如 4.3) 或 MHz (如 4300)
+                // 如果数值大于 100 自动判断为 MHz 并转换为 GHz
+                if (num > 100) num = num / 1000; 
+                
+                // 以 5.0 GHz 为 100% 满格（支持超频超过 100%）
+                percent = (num / 5.0) * 100;
+                percent = Math.max(percent, 0); // 不锁死上限，允许进度超满圈
+                text.innerText = num.toFixed(1);
+            } else {
+                // 标准百分比模式 (CPU / RAM)
+                percent = Math.min(Math.max(num, 0), 100);
+                text.innerText = Math.floor(num);
+            }
+
+            // 限制可视渲染条不低于 0
+            let renderPercent = Math.min(percent, 120); 
+            ring.style.strokeDashoffset = ringLen - (renderPercent / 100) * ringLen;
+        }
+
+        async function refresh() {
+            try {
+                const res = await fetch(`http://${host}:${port}/get_data`);
+                const data = await res.json();
+
+                // 核心单行数注入
+                document.getElementById('v-ip').innerText = data.a527_ip || "0.0.0.0";
+                document.getElementById('uptime').innerText = "UPTIME: " + (data.uptime || "00:00:00");
+                
+                // 1. 渲染基础 CPU / RAM
+                update('cpu', data.pc_cpu);
+                update('mem', data.pc_mem);
+                
+                // 2. 动态捕获并解析后端【核心温度】（多字段兼容适配）
+                let tempData = data.pc_temp !== undefined ? data.pc_temp : (data.cpu_temp !== undefined ? data.cpu_temp : data.temperature);
+                update('temp', tempData !== undefined ? tempData : 0, 'temp');
+                
+                // 3. 动态捕获并解析后端【核心频率】（多字段兼容适配）
+                let freqData = data.pc_freq !== undefined ? data.pc_freq : (data.cpu_freq !== undefined ? data.cpu_freq : data.frequency);
+                update('freq', freqData !== undefined ? freqData : 0, 'freq');
+
+                // 握手状态转换
+                const container = document.getElementById('status-container');
+                const stxt = document.getElementById('status-txt');
+                if (data.online) {
+                    container.classList.add('online');
+                    stxt.innerText = "ACTIVE HUB";
+                    stxt.style.color = "var(--apple-green)";
+                } else {
+                    container.classList.remove('online');
+                    stxt.innerText = "OFFLINE";
+                    stxt.style.color = "var(--text-dim)";
+                }
+
+                // 下行控制流进度
+                const bar = document.getElementById('fill');
+                const log = document.getElementById('log');
+                if (data.upload_progress) {
+                    bar.style.width = data.upload_progress + "%";
+                    log.innerText = "UPLINK FLOWING: " + data.upload_progress + "%";
+                    log.style.color = "var(--apple-blue)";
+                } else {
+                    bar.style.width = "0%";
+                    log.innerText = "SYSTEM SECURE // STABLE TELEMETRY";
+                    log.style.color = "var(--text-dim)";
+                }
+
+            } catch (e) {
+                document.getElementById('log').innerText = "HOST INTERFACE DISRUPTED // RETRYING";
+                document.getElementById('log').style.color = "var(--apple-red)";
+                
+                const container = document.getElementById('status-container');
+                if (container) container.classList.remove('online');
+                const stxt = document.getElementById('status-txt');
+                if (stxt) {
+                    stxt.innerText = "LINK LOSS";
+                    stxt.style.color = "var(--apple-red)";
+                }
+            }
+        }
+
+        setInterval(refresh, 500);
+        refresh();
+    </script>
+</body>
+</html>
